@@ -1,0 +1,30 @@
+import { initializeApp } from "firebase/app";
+import { getAuth, browserSessionPersistence, setPersistence } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+};
+
+const app = initializeApp(firebaseConfig);
+
+// Dev-only log to confirm the web client is pointed at the expected Firebase project
+if (import.meta.env.DEV) {
+  console.info("Firebase configured", {
+    projectId: firebaseConfig.projectId,
+    appId: firebaseConfig.appId,
+    authDomain: firebaseConfig.authDomain,
+  });
+}
+
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+
+// Use session persistence so auth clears when the browser (not just tab) closes.
+// This ensures the login page always shows on a fresh browser open.
+setPersistence(auth, browserSessionPersistence).catch(() => {});

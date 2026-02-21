@@ -5,39 +5,45 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Button } from "../components/ui/button";
+import { signInWithEmailAndPassword, getAuth } from "firebase/auth";
 
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
     if (!email || !password) {
-      setError("Please fill in all fields");
+      setError("Please fill in all fields.");
       return;
     }
 
-    // Mock authentication - check if user exists in localStorage
-    const users = JSON.parse(localStorage.getItem("users") || "[]");
-    const police = JSON.parse(localStorage.getItem("police") || "[]");
-    
-    const user = users.find((u: any) => u.email === email && u.password === password);
-    const officer = police.find((p: any) => p.email === email && p.password === password);
+    setLoading(true);
+    const auth = getAuth();
 
-    if (user) {
-      localStorage.setItem("currentUser", JSON.stringify({ ...user, type: "user" }));
-      localStorage.setItem("isAuthenticated", "true");
-      navigate("/role-select");
-    } else if (officer) {
-      localStorage.setItem("currentUser", JSON.stringify({ ...officer, type: "police" }));
-      localStorage.setItem("isAuthenticated", "true");
-      navigate("/role-select");
-    } else {
-      setError("Invalid email or password");
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password.trim());
+      navigate("/police", { replace: true });
+    } catch (err: any) {
+      setLoading(false);
+      const code: string = err?.code || "";
+      if (code === "auth/too-many-requests") {
+        setError("Too many failed attempts. Please wait and try again.");
+      } else if (
+        code === "auth/user-not-found" ||
+        code === "auth/wrong-password" ||
+        code === "auth/invalid-credential" ||
+        code === "auth/invalid-email"
+      ) {
+        setError("No account found or incorrect password. Please register first.");
+      } else {
+        setError(`Sign-in failed (${code || "unknown"}). Please try again.`);
+      }
     }
   };
 
@@ -48,8 +54,8 @@ export default function Login() {
           <div className="mx-auto mb-4 w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center">
             <Shield className="w-8 h-8 text-white" />
           </div>
-          <CardTitle className="text-2xl">Welcome Back</CardTitle>
-          <CardDescription>Sign in to access your dashboard</CardDescription>
+          <CardTitle className="text-2xl">PCR Login</CardTitle>
+          <CardDescription>Sign in to access the Police Control Room</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -89,8 +95,8 @@ export default function Login() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full">
-              Sign In
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
 

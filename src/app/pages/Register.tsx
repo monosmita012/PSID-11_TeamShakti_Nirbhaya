@@ -1,24 +1,32 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { Shield, User, Mail, Lock, Calendar, MapPin, Building } from "lucide-react";
+import { Shield, Mail, Lock, MapPin, Building } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Button } from "../components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, getAuth } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "../../firebase";
+
+const mapAuthError = (code: string) => {
+  switch (code) {
+    case "auth/email-already-in-use":
+      return "Email already registered. Signing you in...";
+    case "auth/invalid-email":
+      return "Please enter a valid email address.";
+    case "auth/operation-not-allowed":
+      return "Email/password sign-in is not enabled in Firebase.";
+    case "auth/weak-password":
+      return "Password must be at least 6 characters.";
+    default:
+      return "Unable to register. Please try again.";
+  }
+};
 
 export default function Register() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("user");
-
-  // User form state
-  const [userName, setUserName] = useState("");
-  const [userEmail, setUserEmail] = useState("");
-  const [userPassword, setUserPassword] = useState("");
-  const [userAge, setUserAge] = useState("");
-  const [userPhone, setUserPhone] = useState("");
-  const [userAddress, setUserAddress] = useState("");
 
   // Police form state
   const [officerName, setOfficerName] = useState("");
@@ -33,45 +41,7 @@ export default function Register() {
 
   const [error, setError] = useState("");
 
-  const handleUserSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-
-    if (!userName || !userEmail || !userPassword || !userAge) {
-      setError("Please fill in all required fields");
-      return;
-    }
-
-    const users = JSON.parse(localStorage.getItem("users") || "[]");
-    
-    // Check if email already exists
-    if (users.some((u: any) => u.email === userEmail)) {
-      setError("Email already registered");
-      return;
-    }
-
-    const newUser = {
-      id: Date.now().toString(),
-      name: userName,
-      email: userEmail,
-      password: userPassword,
-      age: userAge,
-      phone: userPhone,
-      address: userAddress,
-      createdAt: new Date().toISOString(),
-    };
-
-    users.push(newUser);
-    localStorage.setItem("users", JSON.stringify(users));
-    
-    // Auto login
-    localStorage.setItem("currentUser", JSON.stringify({ ...newUser, type: "user" }));
-    localStorage.setItem("isAuthenticated", "true");
-    
-    navigate("/role-select");
-  };
-
-  const handlePoliceSubmit = (e: React.FormEvent) => {
+  const handlePoliceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -80,36 +50,51 @@ export default function Register() {
       return;
     }
 
-    const police = JSON.parse(localStorage.getItem("police") || "[]");
-    
-    // Check if email already exists
-    if (police.some((p: any) => p.email === officerEmail)) {
-      setError("Email already registered");
-      return;
+    const email = officerEmail.trim();
+    const password = officerPassword.trim();
+
+    try {
+      const auth = getAuth();
+      let userId: string;
+
+      // Step 1: Create Firebase Auth account (or sign in if already exists)
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        userId = cred.user.uid;
+        await updateProfile(cred.user, { displayName: "police" });
+        await cred.user.reload();
+      } catch (authErr: any) {
+        if (authErr?.code === "auth/email-already-in-use") {
+          const cred = await signInWithEmailAndPassword(auth, email, password);
+          userId = cred.user.uid;
+        } else {
+          throw authErr;
+        }
+      }
+
+      // Step 2: Write profile to Firestore (non-fatal — user can edit from dashboard if this fails)
+      try {
+        await setDoc(doc(db, "profiles", userId), {
+          id: userId,
+          name: officerName,
+          email,
+          badgeNumber,
+          stationName,
+          stationArea,
+          stationLocation,
+          areaType,
+          rank,
+          type: "police",
+          createdAt: new Date().toISOString(),
+        });
+      } catch {
+        // Firestore write failed (rules may block it) — user can still log in and save from profile tab
+      }
+
+      navigate("/police", { replace: true });
+    } catch (err: any) {
+      setError(mapAuthError(err?.code));
     }
-
-    const newOfficer = {
-      id: Date.now().toString(),
-      name: officerName,
-      email: officerEmail,
-      password: officerPassword,
-      badgeNumber: badgeNumber,
-      stationName: stationName,
-      stationArea: stationArea,
-      stationLocation: stationLocation,
-      areaType: areaType,
-      rank: rank,
-      createdAt: new Date().toISOString(),
-    };
-
-    police.push(newOfficer);
-    localStorage.setItem("police", JSON.stringify(police));
-    
-    // Auto login
-    localStorage.setItem("currentUser", JSON.stringify({ ...newOfficer, type: "police" }));
-    localStorage.setItem("isAuthenticated", "true");
-    
-    navigate("/role-select");
   };
 
   return (
@@ -119,113 +104,12 @@ export default function Register() {
           <div className="mx-auto mb-4 w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center">
             <Shield className="w-8 h-8 text-white" />
           </div>
-          <CardTitle className="text-2xl">Create Account</CardTitle>
-          <CardDescription>Register as a user or police officer</CardDescription>
+          <CardTitle className="text-2xl">PCR Registration</CardTitle>
+          <CardDescription>Register as a Police Control Room officer</CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="user" className="flex items-center gap-2">
-                <User className="w-4 h-4" />
-                User
-              </TabsTrigger>
-              <TabsTrigger value="police" className="flex items-center gap-2">
-                <Shield className="w-4 h-4" />
-                Police Officer
-              </TabsTrigger>
-            </TabsList>
-
-            {/* User Registration Form */}
-            <TabsContent value="user">
-              <form onSubmit={handleUserSubmit} className="space-y-4">
-                {error && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
-                    {error}
-                  </div>
-                )}
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="userName">Full Name *</Label>
-                    <Input
-                      id="userName"
-                      placeholder="John Doe"
-                      value={userName}
-                      onChange={(e) => setUserName(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="userAge">Age *</Label>
-                    <Input
-                      id="userAge"
-                      type="number"
-                      placeholder="25"
-                      value={userAge}
-                      onChange={(e) => setUserAge(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="userEmail">Email *</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                    <Input
-                      id="userEmail"
-                      type="email"
-                      placeholder="your.email@example.com"
-                      className="pl-10"
-                      value={userEmail}
-                      onChange={(e) => setUserEmail(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="userPassword">Password *</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                    <Input
-                      id="userPassword"
-                      type="password"
-                      placeholder="••••••••"
-                      className="pl-10"
-                      value={userPassword}
-                      onChange={(e) => setUserPassword(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="userPhone">Phone Number</Label>
-                  <Input
-                    id="userPhone"
-                    type="tel"
-                    placeholder="+1 (555) 123-4567"
-                    value={userPhone}
-                    onChange={(e) => setUserPhone(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="userAddress">Address</Label>
-                  <Input
-                    id="userAddress"
-                    placeholder="123 Main St, City, State"
-                    value={userAddress}
-                    onChange={(e) => setUserAddress(e.target.value)}
-                  />
-                </div>
-
-                <Button type="submit" className="w-full">
-                  Register as User
-                </Button>
-              </form>
-            </TabsContent>
-
             {/* Police Registration Form */}
-            <TabsContent value="police">
+            <div>
               <form onSubmit={handlePoliceSubmit} className="space-y-4">
                 {error && (
                   <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
@@ -360,8 +244,7 @@ export default function Register() {
                   Register as Police Officer
                 </Button>
               </form>
-            </TabsContent>
-          </Tabs>
+            </div>
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">

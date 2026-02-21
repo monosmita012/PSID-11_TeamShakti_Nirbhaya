@@ -3,20 +3,28 @@ import { Shield, User, LogOut } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { useEffect, useState } from "react";
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../../firebase";
 
 export default function RoleSelect() {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
-    const isAuthenticated = localStorage.getItem("isAuthenticated");
-    if (!isAuthenticated) {
-      navigate("/login");
-      return;
-    }
+    const auth = getAuth();
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        navigate("/login");
+        return;
+      }
+      const profileRef = doc(db, "profiles", user.uid);
+      const profileSnap = await getDoc(profileRef);
+      const profile = profileSnap.exists() ? profileSnap.data() : {};
+      setCurrentUser({ email: user.email, ...profile });
+    });
 
-    const user = JSON.parse(localStorage.getItem("currentUser") || "{}");
-    setCurrentUser(user);
+    return () => unsub();
   }, [navigate]);
 
   const handleRoleSelect = (role: "user" | "police") => {
@@ -27,9 +35,9 @@ export default function RoleSelect() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("isAuthenticated");
-    localStorage.removeItem("currentUser");
+  const handleLogout = async () => {
+    const auth = getAuth();
+    await signOut(auth);
     navigate("/login");
   };
 

@@ -1,93 +1,125 @@
-import { useState } from "react";
-import { Link } from "react-router";
-import { 
-  ArrowLeft, AlertCircle, CheckCircle, Clock, TrendingUp, Users, 
-  FileText, MapPin, LogOut, AlertTriangle, Phone, Navigation, 
-  UserCheck, MessageSquare, Download, Search, Filter, Calendar
+import { Fragment, useEffect, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  Calendar,
+  CheckCircle,
+  Download,
+  FileText,
+  MapPin,
+  Mic,
+  Navigation,
+  Pencil,
+  Phone,
+  Radio,
+  Search,
+  UserCheck,
+  Video,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Textarea } from "../components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
+import { Textarea } from "../components/ui/textarea";
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "../../firebase";
 
-const stats = [
-  { label: "Active SOS", value: "3", icon: AlertTriangle, color: "text-red-600" },
-  { label: "Dispatched", value: "5", icon: Users, color: "text-yellow-600" },
-  { label: "Resolved Today", value: "12", icon: CheckCircle, color: "text-green-600" },
-  { label: "Response Time", value: "4.2m", icon: Clock, color: "text-blue-600" },
-];
+type SOSAlert = {
+  id: string;
+  victimName: string;
+  phone: string;
+  location: string;
+  triggeredAt: string;
+  status: "Active" | "Dispatched" | "Resolved" | "False alarm";
+  assignedOfficer?: string | null;
+  lat: number;
+  lng: number;
+};
 
-const sosAlerts = [
-  { 
-    id: "SOS-2026-001", 
-    victimName: "Sarah Johnson", 
+type Incident = {
+  id: string;
+  location: string;
+  victimName: string;
+  date: string;
+  status: "Active" | "Investigating" | "Resolved";
+};
+
+type OfficerProfile = {
+  name: string;
+  email: string;
+  badgeNumber: string;
+  rank: string;
+  stationName: string;
+  stationArea: string;
+  stationLocation: string;
+  areaType: string;
+};
+
+const initialAlerts: SOSAlert[] = [
+  {
+    id: "SOS-2026-001",
+    victimName: "Sarah Johnson",
     phone: "+1 (555) 123-4567",
     location: "123 Oak Street, Downtown",
-    timeTriggered: "2 min ago",
+    triggeredAt: new Date().toISOString(),
     status: "Active",
     assignedOfficer: null,
     lat: 40.7128,
-    lng: -74.0060,
+    lng: -74.006,
   },
-  { 
-    id: "SOS-2026-002", 
-    victimName: "Michael Chen", 
+  {
+    id: "SOS-2026-002",
+    victimName: "Michael Chen",
     phone: "+1 (555) 987-6543",
     location: "456 Pine Avenue, Eastside",
-    timeTriggered: "15 min ago",
+    triggeredAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
     status: "Dispatched",
     assignedOfficer: "Officer Rodriguez",
     lat: 40.7589,
     lng: -73.9851,
   },
-  { 
-    id: "SOS-2026-003", 
-    victimName: "Emily Davis", 
-    phone: "+1 (555) 456-7890",
-    location: "789 Maple Road, Westend",
-    timeTriggered: "8 min ago",
-    status: "Active",
-    assignedOfficer: null,
-    lat: 40.7282,
-    lng: -73.7949,
-  },
 ];
 
-const recentIncidents = [
-  { 
-    id: "INC-2026-001", 
-    type: "Theft", 
-    location: "Downtown Plaza", 
-    status: "Resolved", 
-    priority: "High", 
-    date: "2026-02-21",
-    responseTime: "5.2 min",
-    reporter: "John Smith"
-  },
-  { 
-    id: "INC-2026-002", 
-    type: "Vandalism", 
-    location: "City Park", 
-    status: "Investigating", 
-    priority: "Medium", 
-    date: "2026-02-21",
-    responseTime: "8.1 min",
-    reporter: "Jane Doe"
-  },
-  { 
-    id: "INC-2026-003", 
-    type: "Traffic Accident", 
-    location: "Main Street", 
-    status: "Resolved", 
-    priority: "Low", 
+const initialHistory: Incident[] = [
+  {
+    id: "INC-2026-101",
+    location: "Downtown Plaza",
+    victimName: "John Smith",
     date: "2026-02-20",
-    responseTime: "3.5 min",
-    reporter: "Bob Wilson"
+    status: "Resolved",
+  },
+  {
+    id: "INC-2026-102",
+    location: "City Park",
+    victimName: "Jane Doe",
+    date: "2026-02-21",
+    status: "Investigating",
   },
 ];
 
@@ -98,41 +130,150 @@ const officers = [
   { id: "P-1004", name: "Officer Smith" },
 ];
 
+const formatDateTime = (iso: string) => new Date(iso).toLocaleString();
+
 export default function PoliceDashboard() {
-  const [selectedSOS, setSelectedSOS] = useState<string | null>(null);
-  const [sosStatuses, setSosStatuses] = useState<Record<string, string>>({});
+  const [sosAlerts, setSosAlerts] = useState<SOSAlert[]>(initialAlerts);
+  const [historyIncidents, setHistoryIncidents] = useState<Incident[]>(initialHistory);
+  const [sosStatuses, setSosStatuses] = useState<Record<string, SOSAlert["status"]>>({});
   const [sosOfficers, setSosOfficers] = useState<Record<string, string>>({});
   const [sosNotes, setSosNotes] = useState<Record<string, string>>({});
+  const [selectedSOS, setSelectedSOS] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<SOSAlert["status"] | null>(null);
   const [searchDate, setSearchDate] = useState("");
   const [filterLocation, setFilterLocation] = useState("");
 
-  const handleLogout = () => {
-    localStorage.removeItem("isAuthenticated");
-    localStorage.removeItem("currentUser");
+  // Profile state
+  const [profile, setProfile] = useState<OfficerProfile | null>(null);
+  const [editProfile, setEditProfile] = useState<OfficerProfile | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+
+  useEffect(() => {
+    const auth = getAuth();
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setProfileLoading(false);
+        return;
+      }
+      try {
+        const snap = await getDoc(doc(db, "profiles", user.uid));
+        if (snap.exists()) {
+          const data = snap.data() as OfficerProfile;
+          // Fallback: always fill email from Firebase Auth if missing in Firestore
+          if (!data.email) data.email = user.email || "";
+          setProfile(data);
+          setEditProfile(data);
+        } else {
+          // No Firestore doc yet — seed from Firebase Auth and open edit mode so user can complete profile
+          const seed: OfficerProfile = {
+            name: user.displayName === "police" ? "" : (user.displayName || ""),
+            email: user.email || "",
+            badgeNumber: "",
+            rank: "",
+            stationName: "",
+            stationArea: "",
+            stationLocation: "",
+            areaType: "",
+          };
+          setProfile(seed);
+          setEditProfile(seed);
+          setIsEditing(true); // auto-open edit mode so they can fill in missing fields
+        }
+      } catch (err: any) {
+        const msg = err?.message || "";
+        if (msg.includes("PERMISSION_DENIED") || msg.includes("permission")) {
+          // Firestore rules block the read — seed from Firebase Auth minimum data
+          const seed: OfficerProfile = {
+            name: user.displayName || "",
+            email: user.email || "",
+            badgeNumber: "",
+            rank: "",
+            stationName: "",
+            stationArea: "",
+            stationLocation: "",
+            areaType: "",
+          };
+          setProfile(seed);
+          setEditProfile(seed);
+          setProfileError("Firestore read permission denied. Showing your auth details only. Please update Firestore rules to allow: allow read, write: if request.auth.uid == userId;");
+        } else {
+          setProfileError(msg || "Failed to load profile from database.");
+        }
+      } finally {
+        setProfileLoading(false);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const handleSaveProfile = async () => {
+    if (!editProfile) return;
+    const auth = getAuth();
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+      await setDoc(doc(db, "profiles", user.uid), {
+        ...editProfile,
+        id: user.uid,
+        type: "police",
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+      setProfile(editProfile);
+      setIsEditing(false);
+      setProfileSaved(true);
+      setProfileError(null);
+      setTimeout(() => setProfileSaved(false), 3000);
+    } catch (err: any) {
+      setProfileError("Save failed: " + (err?.message || "unknown error"));
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const auth = getAuth();
+      await signOut(auth);
+    } catch { /* ignore */ }
     window.location.href = "/login";
   };
 
-  const handleAssignOfficer = (sosId: string, officerId: string) => {
-    setSosOfficers({ ...sosOfficers, [sosId]: officerId });
+  const handleAssignOfficer = (id: string, officerName: string) => {
+    setSosOfficers((prev) => ({ ...prev, [id]: officerName }));
   };
 
-  const handleUpdateStatus = (sosId: string, status: string) => {
-    setSosStatuses({ ...sosStatuses, [sosId]: status });
+  const handleUpdateStatus = (id: string, status: SOSAlert["status"]) => {
+    setSosStatuses((prev) => ({ ...prev, [id]: status }));
+    setSosAlerts((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
+    if (status === "Resolved") {
+      setSelectedSOS(null);
+      setStatusFilter(null);
+    }
   };
 
-  const handleAddNote = (sosId: string, note: string) => {
-    setSosNotes({ ...sosNotes, [sosId]: note });
+  const handleAddNote = (id: string, note: string) => {
+    setSosNotes((prev) => ({ ...prev, [id]: note }));
   };
 
   const openGoogleMaps = (lat: number, lng: number) => {
     window.open(`https://www.google.com/maps?q=${lat},${lng}`, "_blank");
   };
 
-  const handleDownloadReport = (format: string) => {
-    alert(`Downloading report in ${format} format...`);
+  const handlePlayMedia = (id: string, kind: "audio" | "video") => {
+    alert(`Playing ${kind} for ${id}`);
   };
 
-  const getStatusColor = (status: string) => {
+  const handleDownloadReport = (format: string) => {
+    alert(`Downloading ${format} report`);
+  };
+
+  const handleHistoryStatusChange = (id: string, status: Incident["status"]) => {
+    setHistoryIncidents((prev) => prev.map((h) => (h.id === id ? { ...h, status } : h)));
+  };
+
+  const getStatusColor = (status: SOSAlert["status"]) => {
     switch (status) {
       case "Active":
         return "bg-red-100 text-red-800 border-red-300";
@@ -147,7 +288,7 @@ export default function PoliceDashboard() {
     }
   };
 
-  const getStatusEmoji = (status: string) => {
+  const getStatusEmoji = (status: SOSAlert["status"]) => {
     switch (status) {
       case "Active":
         return "🔴";
@@ -162,18 +303,52 @@ export default function PoliceDashboard() {
     }
   };
 
+  const derivedAlerts = useMemo(
+    () =>
+      sosAlerts.map((a) => ({
+        ...a,
+        currentStatus: sosStatuses[a.id] || a.status,
+      })),
+    [sosAlerts, sosStatuses]
+  );
+
+  const filteredAlerts = useMemo(
+    () => (statusFilter ? derivedAlerts.filter((a) => a.currentStatus === statusFilter) : derivedAlerts),
+    [derivedAlerts, statusFilter]
+  );
+
+  const counts = useMemo(
+    () => ({
+      active: derivedAlerts.filter((a) => a.currentStatus === "Active").length,
+      dispatched: derivedAlerts.filter((a) => a.currentStatus === "Dispatched").length,
+      resolved: derivedAlerts.filter((a) => a.currentStatus === "Resolved").length,
+    }),
+    [derivedAlerts]
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* Logout confirmation dialog */}
+      <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Do you want to logout?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will be signed out and returned to the login page.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLogout} className="bg-red-600 hover:bg-red-700">
+              Logout
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <header className="bg-blue-900 text-white shadow-lg">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link to="/role-select">
-                <Button variant="ghost" size="icon" className="text-white hover:bg-blue-800">
-                  <ArrowLeft className="w-5 h-5" />
-                </Button>
-              </Link>
               <div>
                 <h1 className="text-2xl">Police Command Center</h1>
                 <p className="text-blue-200 text-sm">Real-time Emergency Response Dashboard</p>
@@ -181,66 +356,101 @@ export default function PoliceDashboard() {
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="bg-blue-800 text-white border-blue-700">
-                Officer ID: P-1245
+                Officer ID: {profile?.badgeNumber || "—"}
               </Badge>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={handleLogout}
-                className="text-white hover:bg-blue-800"
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setShowLogoutDialog(true)}
+                className="bg-red-500 hover:bg-red-600 text-white font-semibold border-0 shadow"
               >
-                <LogOut className="w-5 h-5" />
+                Logout
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat) => (
-            <Card key={stat.label}>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">{stat.label}</p>
-                    <p className="text-3xl">{stat.value}</p>
-                  </div>
-                  <stat.icon className={`w-8 h-8 ${stat.color}`} />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+      <main className="container mx-auto px-4 py-8 space-y-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card onClick={() => setStatusFilter("Active")} className="cursor-pointer">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-600" />
+                Active
+              </CardTitle>
+              <CardDescription>Open emergencies</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{counts.active}</p>
+            </CardContent>
+          </Card>
+
+          <Card onClick={() => setStatusFilter("Dispatched")} className="cursor-pointer">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Radio className="w-4 h-4 text-yellow-600" />
+                Dispatched
+              </CardTitle>
+              <CardDescription>Teams on the way</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{counts.dispatched}</p>
+            </CardContent>
+          </Card>
+
+          <Card onClick={() => setStatusFilter("Resolved")} className="cursor-pointer">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                Resolved
+              </CardTitle>
+              <CardDescription>Closed incidents</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{counts.resolved}</p>
+            </CardContent>
+          </Card>
         </div>
 
+        {statusFilter && (
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <Badge variant="outline">Filtered by: {statusFilter}</Badge>
+            <Button size="sm" variant="ghost" onClick={() => setStatusFilter(null)}>
+              Remove Filter
+            </Button>
+          </div>
+        )}
+
         <Tabs defaultValue="sos" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="sos" className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" />
+          <TabsList className="w-full grid grid-cols-3 h-14">
+            <TabsTrigger value="sos" className="flex items-center justify-center gap-2 text-base font-bold h-full">
+              <AlertTriangle className="w-5 h-5" />
               Active SOS Alerts
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2">
-              <FileText className="w-4 h-4" />
+            <TabsTrigger value="history" className="flex items-center justify-center gap-2 text-base font-bold h-full">
+              <FileText className="w-5 h-5" />
               History & Reports
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="flex items-center justify-center gap-2 text-base font-bold h-full">
+              <UserCheck className="w-5 h-5" />
+              Profile
             </TabsTrigger>
           </TabsList>
 
-          {/* Active SOS Alerts */}
           <TabsContent value="sos">
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 font-extrabold">
                       <AlertTriangle className="w-5 h-5 text-red-600" />
                       Active SOS Alerts (Real-time)
                     </CardTitle>
                     <CardDescription>Emergency alerts requiring immediate attention</CardDescription>
                   </div>
                   <Badge className="bg-red-600 text-white animate-pulse">
-                    {sosAlerts.filter(s => sosStatuses[s.id] !== "Resolved" && sosStatuses[s.id] !== "False alarm").length} Active
+                    {derivedAlerts.filter((s) => s.currentStatus !== "Resolved" && s.currentStatus !== "False alarm").length} Active
                   </Badge>
                 </div>
               </CardHeader>
@@ -248,18 +458,20 @@ export default function PoliceDashboard() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Emergency ID</TableHead>
-                      <TableHead>Victim Name</TableHead>
-                      <TableHead>Phone Number</TableHead>
-                      <TableHead>Time Triggered</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead className="font-extrabold text-base">Emergency ID</TableHead>
+                      <TableHead className="font-extrabold text-base">Victim Name</TableHead>
+                      <TableHead className="font-extrabold text-base">Phone Number</TableHead>
+                      <TableHead className="font-extrabold text-base">Time Triggered</TableHead>
+                      <TableHead className="font-extrabold text-base">Audio</TableHead>
+                      <TableHead className="font-extrabold text-base">Video</TableHead>
+                      <TableHead className="font-extrabold text-base">Status</TableHead>
+                      <TableHead className="font-extrabold text-base">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sosAlerts.map((alert) => (
-                      <>
-                        <TableRow key={alert.id}>
+                    {filteredAlerts.map((alert) => (
+                      <Fragment key={alert.id}>
+                        <TableRow>
                           <TableCell className="font-mono text-sm">{alert.id}</TableCell>
                           <TableCell>{alert.victimName}</TableCell>
                           <TableCell>
@@ -268,43 +480,43 @@ export default function PoliceDashboard() {
                               {alert.phone}
                             </div>
                           </TableCell>
-                          <TableCell className="text-sm text-gray-600">{alert.timeTriggered}</TableCell>
+                          <TableCell className="text-sm text-gray-600">{formatDateTime(alert.triggeredAt)}</TableCell>
                           <TableCell>
-                            <Badge className={getStatusColor(sosStatuses[alert.id] || alert.status)}>
-                              {getStatusEmoji(sosStatuses[alert.id] || alert.status)} {sosStatuses[alert.id] || alert.status}
+                            <Button size="icon" variant="outline" className="h-10 w-10" onClick={() => handlePlayMedia(alert.id, "audio")}> 
+                              <Mic className="w-5 h-5" />
+                            </Button>
+                          </TableCell>
+                          <TableCell>
+                            <Button size="icon" variant="outline" className="h-10 w-10" onClick={() => handlePlayMedia(alert.id, "video")}> 
+                              <Video className="w-5 h-5" />
+                            </Button>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={getStatusColor(alert.currentStatus as SOSAlert["status"])}>
+                              {getStatusEmoji(alert.currentStatus as SOSAlert["status"])} {alert.currentStatus}
                             </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-2">
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={() => openGoogleMaps(alert.lat, alert.lng)}
-                              >
+                              <Button size="sm" variant="outline" onClick={() => openGoogleMaps(alert.lat, alert.lng)}>
                                 <Navigation className="w-3 h-3 mr-1" />
                                 Live Location
                               </Button>
-                              <Button 
-                                size="sm" 
-                                variant={selectedSOS === alert.id ? "default" : "outline"}
-                                onClick={() => setSelectedSOS(selectedSOS === alert.id ? null : alert.id)}
-                              >
+                              <Button size="sm" variant={selectedSOS === alert.id ? "default" : "outline"} onClick={() => setSelectedSOS(selectedSOS === alert.id ? null : alert.id)}>
                                 {selectedSOS === alert.id ? "Hide" : "Manage"}
                               </Button>
                             </div>
                           </TableCell>
                         </TableRow>
+
                         {selectedSOS === alert.id && (
                           <TableRow>
-                            <TableCell colSpan={6} className="bg-gray-50">
+                            <TableCell colSpan={8} className="bg-gray-50">
                               <div className="p-4 space-y-4">
                                 <div className="grid md:grid-cols-2 gap-4">
                                   <div className="space-y-2">
                                     <Label>Assign Officer</Label>
-                                    <Select 
-                                      value={sosOfficers[alert.id] || alert.assignedOfficer || ""}
-                                      onValueChange={(value) => handleAssignOfficer(alert.id, value)}
-                                    >
+                                    <Select value={sosOfficers[alert.id] || alert.assignedOfficer || ""} onValueChange={(value) => handleAssignOfficer(alert.id, value)}>
                                       <SelectTrigger>
                                         <SelectValue placeholder="Select officer" />
                                       </SelectTrigger>
@@ -323,10 +535,7 @@ export default function PoliceDashboard() {
 
                                   <div className="space-y-2">
                                     <Label>Update Status</Label>
-                                    <Select 
-                                      value={sosStatuses[alert.id] || alert.status}
-                                      onValueChange={(value) => handleUpdateStatus(alert.id, value)}
-                                    >
+                                    <Select value={alert.currentStatus} onValueChange={(value) => handleUpdateStatus(alert.id, value as SOSAlert["status"])}>
                                       <SelectTrigger>
                                         <SelectValue />
                                       </SelectTrigger>
@@ -342,11 +551,7 @@ export default function PoliceDashboard() {
 
                                 <div className="space-y-2">
                                   <Label>Internal Notes</Label>
-                                  <Textarea 
-                                    placeholder="Add internal notes about this emergency..."
-                                    value={sosNotes[alert.id] || ""}
-                                    onChange={(e) => handleAddNote(alert.id, e.target.value)}
-                                  />
+                                  <Textarea placeholder="Add internal notes about this emergency..." value={sosNotes[alert.id] || ""} onChange={(e) => handleAddNote(alert.id, e.target.value)} />
                                 </div>
 
                                 <div className="bg-white p-4 rounded-lg border">
@@ -356,7 +561,7 @@ export default function PoliceDashboard() {
                                       <div className="w-2 h-2 bg-red-600 rounded-full mt-2"></div>
                                       <div>
                                         <p className="text-sm font-medium">SOS Triggered</p>
-                                        <p className="text-xs text-gray-600">{alert.timeTriggered} - Location: {alert.location}</p>
+                                        <p className="text-xs text-gray-600">{formatDateTime(alert.triggeredAt)} - Location: {alert.location}</p>
                                       </div>
                                     </div>
                                     {(sosOfficers[alert.id] || alert.assignedOfficer) && (
@@ -368,7 +573,7 @@ export default function PoliceDashboard() {
                                         </div>
                                       </div>
                                     )}
-                                    {sosStatuses[alert.id] === "Resolved" && (
+                                    {alert.currentStatus === "Resolved" && (
                                       <div className="flex items-start gap-3">
                                         <div className="w-2 h-2 bg-green-600 rounded-full mt-2"></div>
                                         <div>
@@ -383,7 +588,7 @@ export default function PoliceDashboard() {
                             </TableCell>
                           </TableRow>
                         )}
-                      </>
+                      </Fragment>
                     ))}
                   </TableBody>
                 </Table>
@@ -391,13 +596,12 @@ export default function PoliceDashboard() {
             </Card>
           </TabsContent>
 
-          {/* History & Reports */}
           <TabsContent value="history">
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>History & Reports</CardTitle>
+                    <CardTitle className="font-extrabold">History & Reports</CardTitle>
                     <CardDescription>Search and filter past incidents</CardDescription>
                   </div>
                   <div className="flex gap-2">
@@ -418,24 +622,14 @@ export default function PoliceDashboard() {
                     <Label>Search by Date</Label>
                     <div className="relative">
                       <Calendar className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                      <Input 
-                        type="date" 
-                        className="pl-10"
-                        value={searchDate}
-                        onChange={(e) => setSearchDate(e.target.value)}
-                      />
+                      <Input type="date" className="pl-10" value={searchDate} onChange={(e) => setSearchDate(e.target.value)} />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Filter by Location</Label>
                     <div className="relative">
                       <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                      <Input 
-                        placeholder="Enter location..."
-                        className="pl-10"
-                        value={filterLocation}
-                        onChange={(e) => setFilterLocation(e.target.value)}
-                      />
+                      <Input placeholder="Enter location..." className="pl-10" value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)} />
                     </div>
                   </div>
                   <div className="flex items-end">
@@ -449,42 +643,39 @@ export default function PoliceDashboard() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Incident ID</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Reporter</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Response Time</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead className="font-extrabold text-base">Emergency ID</TableHead>
+                      <TableHead className="font-extrabold text-base">Location</TableHead>
+                      <TableHead className="font-extrabold text-base">Victim Name</TableHead>
+                      <TableHead className="font-extrabold text-base">Date</TableHead>
+                      <TableHead className="font-extrabold text-base">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recentIncidents
-                      .filter(inc => !searchDate || inc.date === searchDate)
-                      .filter(inc => !filterLocation || inc.location.toLowerCase().includes(filterLocation.toLowerCase()))
+                    {historyIncidents
+                      .filter((inc) => !searchDate || inc.date === searchDate)
+                      .filter((inc) => !filterLocation || inc.location.toLowerCase().includes(filterLocation.toLowerCase()))
                       .map((incident) => (
                         <TableRow key={incident.id}>
                           <TableCell className="font-mono text-sm">{incident.id}</TableCell>
-                          <TableCell>{incident.type}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
                               <MapPin className="w-3 h-3 text-gray-500" />
                               {incident.location}
                             </div>
                           </TableCell>
-                          <TableCell>{incident.reporter}</TableCell>
+                          <TableCell>{incident.victimName}</TableCell>
                           <TableCell className="text-sm text-gray-600">{incident.date}</TableCell>
-                          <TableCell className="text-sm">{incident.responseTime}</TableCell>
                           <TableCell>
-                            <Badge 
-                              className={
-                                incident.status === "Resolved" 
-                                  ? "bg-green-100 text-green-800" 
-                                  : "bg-blue-100 text-blue-800"
-                              }
-                            >
-                              {incident.status}
-                            </Badge>
+                            <Select value={incident.status} onValueChange={(value) => handleHistoryStatusChange(incident.id, value as Incident["status"])}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Investigating">Investigating</SelectItem>
+                                <SelectItem value="Active">Active</SelectItem>
+                                <SelectItem value="Resolved">Resolved</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -493,49 +684,116 @@ export default function PoliceDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="profile">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Officer Profile</CardTitle>
+                  <CardDescription>Your registered account details</CardDescription>
+                </div>
+                {!isEditing && (
+                  <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                    <Pencil className="w-4 h-4 mr-2" />
+                    Edit
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent>
+                {profileSaved && (
+                  <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded text-sm">
+                    ✓ Profile saved successfully
+                  </div>
+                )}
+                {profileError && profile && (
+                  <div className="mb-4 bg-yellow-50 border border-yellow-300 text-yellow-800 px-4 py-2 rounded text-sm">
+                    ⚠ Could not load full profile from database. Showing available data. Please update your <strong>Firestore security rules</strong> to: <code>allow read, write: if request.auth.uid == userId;</code>
+                  </div>
+                )}
+                {profileLoading ? (
+                  <p className="text-sm text-gray-500">Loading profile...</p>
+                ) : profileError && !profile ? (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">{profileError}</div>
+                ) : !profile ? (
+                  <p className="text-sm text-gray-500">No profile data found.</p>
+                ) : isEditing && editProfile ? (
+                  <div className="space-y-4">
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label>Full Name</Label>
+                        <Input value={editProfile.name} onChange={(e) => setEditProfile({ ...editProfile, name: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Email</Label>
+                        <Input type="email" value={editProfile.email} onChange={(e) => setEditProfile({ ...editProfile, email: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Badge Number</Label>
+                        <Input value={editProfile.badgeNumber} onChange={(e) => setEditProfile({ ...editProfile, badgeNumber: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Rank</Label>
+                        <Select value={editProfile.rank} onValueChange={(v) => setEditProfile({ ...editProfile, rank: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="officer">Police Officer</SelectItem>
+                            <SelectItem value="corporal">Corporal</SelectItem>
+                            <SelectItem value="sergeant">Sergeant</SelectItem>
+                            <SelectItem value="lieutenant">Lieutenant</SelectItem>
+                            <SelectItem value="captain">Captain</SelectItem>
+                            <SelectItem value="chief">Chief</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Station Name</Label>
+                        <Input value={editProfile.stationName} onChange={(e) => setEditProfile({ ...editProfile, stationName: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Area</Label>
+                        <Input value={editProfile.stationArea} onChange={(e) => setEditProfile({ ...editProfile, stationArea: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Station Location</Label>
+                        <Input value={editProfile.stationLocation} onChange={(e) => setEditProfile({ ...editProfile, stationLocation: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Area Type</Label>
+                        <Select value={editProfile.areaType} onValueChange={(v) => setEditProfile({ ...editProfile, areaType: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="urban">Urban</SelectItem>
+                            <SelectItem value="suburban">Suburban</SelectItem>
+                            <SelectItem value="rural">Rural</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <Button onClick={handleSaveProfile}>Save Changes</Button>
+                      <Button variant="outline" onClick={() => { setEditProfile(profile); setIsEditing(false); }}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-y-4 gap-x-8 text-sm text-gray-800">
+                    <div className="space-y-3">
+                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Full Name</span><span>{profile.name || "-"}</span></div>
+                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Email</span><span>{profile.email || "-"}</span></div>
+                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Badge Number</span><span>{profile.badgeNumber || "-"}</span></div>
+                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Rank</span><span>{profile.rank || "-"}</span></div>
+                    </div>
+                    <div className="space-y-3">
+                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Station</span><span>{profile.stationName || "-"}</span></div>
+                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Area</span><span>{profile.stationArea || "-"}</span></div>
+                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Location</span><span>{profile.stationLocation || "-"}</span></div>
+                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Area Type</span><span>{profile.areaType || "-"}</span></div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                Analytics
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600 mb-4">View crime statistics and trends</p>
-              <Button variant="outline" className="w-full">View Analytics</Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="w-5 h-5" />
-                Map View
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600 mb-4">See incidents on interactive map</p>
-              <Button variant="outline" className="w-full">Open Map</Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Team
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600 mb-4">Manage officers and assignments</p>
-              <Button variant="outline" className="w-full">Manage Team</Button>
-            </CardContent>
-          </Card>
-        </div>
       </main>
     </div>
   );
