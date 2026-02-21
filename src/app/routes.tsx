@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import PoliceDashboard from "./pages/PoliceDashboard.tsx";
+import PoliceDashboard from "./pages/PoliceDashboard";
 
 // Simple auth guard — only checks if the user is signed in.
 const AuthGuard = ({ children }: { children: ReactNode }) => {

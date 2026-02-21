@@ -70,16 +70,14 @@ type Incident = {
   status: "Active" | "Investigating" | "Resolved";
 };
 
-type OfficerProfile = {
-  name: string;
-  email: string;
-  badgeNumber: string;
-  rank: string;
+ type StationProfile = {
   stationName: string;
   stationArea: string;
   stationLocation: string;
   areaType: string;
-};
+  email?: string;
+  mobile?: string;
+ };
 
 const initialAlerts: SOSAlert[] = [
   {
@@ -133,6 +131,32 @@ const officers = [
 const formatDateTime = (iso: string) => new Date(iso).toLocaleString();
 
 export default function PoliceDashboard() {
+  const handleSaveProfile = async () => {
+    if (!editProfile) return;
+    setProfileLoading(true);
+    try {
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not authenticated");
+      await setDoc(doc(db, "station_profiles", user.uid), editProfile);
+      setProfile(editProfile);
+      setIsEditing(false);
+      setProfileSaved(true);
+      setProfileError(null);
+      setTimeout(() => setProfileSaved(false), 2000);
+    } catch (err: any) {
+      setProfileError(err?.message || "Failed to save profile.");
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+    const handleLogout = async () => {
+      try {
+        const auth = getAuth();
+        await signOut(auth);
+      } catch { /* ignore */ }
+      window.location.href = "/login";
+    };
   const [sosAlerts, setSosAlerts] = useState<SOSAlert[]>(initialAlerts);
   const [historyIncidents, setHistoryIncidents] = useState<Incident[]>(initialHistory);
   const [sosStatuses, setSosStatuses] = useState<Record<string, SOSAlert["status"]>>({});
@@ -144,8 +168,8 @@ export default function PoliceDashboard() {
   const [filterLocation, setFilterLocation] = useState("");
 
   // Profile state
-  const [profile, setProfile] = useState<OfficerProfile | null>(null);
-  const [editProfile, setEditProfile] = useState<OfficerProfile | null>(null);
+  const [profile, setProfile] = useState<StationProfile | null>(null);
+  const [editProfile, setEditProfile] = useState<StationProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -153,92 +177,39 @@ export default function PoliceDashboard() {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   useEffect(() => {
+    setProfileLoading(true);
     const auth = getAuth();
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setProfileLoading(false);
-        return;
-      }
-      try {
-        const snap = await getDoc(doc(db, "profiles", user.uid));
-        if (snap.exists()) {
-          const data = snap.data() as OfficerProfile;
-          // Fallback: always fill email from Firebase Auth if missing in Firestore
-          if (!data.email) data.email = user.email || "";
-          setProfile(data);
-          setEditProfile(data);
-        } else {
-          // No Firestore doc yet — seed from Firebase Auth and open edit mode so user can complete profile
-          const seed: OfficerProfile = {
-            name: user.displayName === "police" ? "" : (user.displayName || ""),
-            email: user.email || "",
-            badgeNumber: "",
-            rank: "",
-            stationName: "",
-            stationArea: "",
-            stationLocation: "",
-            areaType: "",
-          };
-          setProfile(seed);
-          setEditProfile(seed);
-          setIsEditing(true); // auto-open edit mode so they can fill in missing fields
-        }
-      } catch (err: any) {
-        const msg = err?.message || "";
-        if (msg.includes("PERMISSION_DENIED") || msg.includes("permission")) {
-          // Firestore rules block the read — seed from Firebase Auth minimum data
-          const seed: OfficerProfile = {
-            name: user.displayName || "",
-            email: user.email || "",
-            badgeNumber: "",
-            rank: "",
-            stationName: "",
-            stationArea: "",
-            stationLocation: "",
-            areaType: "",
-          };
-          setProfile(seed);
-          setEditProfile(seed);
-          setProfileError("Firestore read permission denied. Showing your auth details only. Please update Firestore rules to allow: allow read, write: if request.auth.uid == userId;");
-        } else {
-          setProfileError(msg || "Failed to load profile from database.");
-        }
-      } finally {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        getDoc(doc(db, "station_profiles", user.uid)).then(snap => {
+          if (snap.exists()) {
+            const data = snap.data() as StationProfile;
+            setProfile(data);
+            setEditProfile(data);
+          } else {
+            const seed: StationProfile = {
+              stationName: "",
+              stationArea: "",
+              stationLocation: "",
+              areaType: "",
+            };
+            setProfile(seed);
+            setEditProfile(seed);
+            setIsEditing(true);
+          }
+        }).catch(err => {
+          setProfileError(err?.message || "Failed to load station profile.");
+        }).finally(() => {
+          setProfileLoading(false);
+        });
+      } else {
+        setProfile(null);
+        setEditProfile(null);
         setProfileLoading(false);
       }
     });
-    return () => unsub();
+    return () => unsubscribe();
   }, []);
-
-  const handleSaveProfile = async () => {
-    if (!editProfile) return;
-    const auth = getAuth();
-    const user = auth.currentUser;
-    if (!user) return;
-    try {
-      await setDoc(doc(db, "profiles", user.uid), {
-        ...editProfile,
-        id: user.uid,
-        type: "police",
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
-      setProfile(editProfile);
-      setIsEditing(false);
-      setProfileSaved(true);
-      setProfileError(null);
-      setTimeout(() => setProfileSaved(false), 3000);
-    } catch (err: any) {
-      setProfileError("Save failed: " + (err?.message || "unknown error"));
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      const auth = getAuth();
-      await signOut(auth);
-    } catch { /* ignore */ }
-    window.location.href = "/login";
-  };
 
   const handleAssignOfficer = (id: string, officerName: string) => {
     setSosOfficers((prev) => ({ ...prev, [id]: officerName }));
@@ -355,9 +326,7 @@ export default function PoliceDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="bg-blue-800 text-white border-blue-700">
-                Officer ID: {profile?.badgeNumber || "—"}
-              </Badge>
+              {/* No Officer ID for station profile */}
               <Button
                 variant="default"
                 size="sm"
@@ -512,77 +481,20 @@ export default function PoliceDashboard() {
                         {selectedSOS === alert.id && (
                           <TableRow>
                             <TableCell colSpan={8} className="bg-gray-50">
-                              <div className="p-4 space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <div className="space-y-2">
-                                    <Label>Assign Officer</Label>
-                                    <Select value={sosOfficers[alert.id] || alert.assignedOfficer || ""} onValueChange={(value) => handleAssignOfficer(alert.id, value)}>
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="Select officer" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {officers.map((officer) => (
-                                          <SelectItem key={officer.id} value={officer.name}>
-                                            <div className="flex items-center gap-2">
-                                              <UserCheck className="w-4 h-4" />
-                                              {officer.name} ({officer.id})
-                                            </div>
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <Label>Update Status</Label>
-                                    <Select value={alert.currentStatus} onValueChange={(value) => handleUpdateStatus(alert.id, value as SOSAlert["status"])}>
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="Active">🔴 Active</SelectItem>
-                                        <SelectItem value="Dispatched">🟡 Dispatched</SelectItem>
-                                        <SelectItem value="Resolved">🟢 Resolved</SelectItem>
-                                        <SelectItem value="False alarm">⚫ False alarm</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                </div>
-
+                              <div className="p-4">
                                 <div className="space-y-2">
-                                  <Label>Internal Notes</Label>
-                                  <Textarea placeholder="Add internal notes about this emergency..." value={sosNotes[alert.id] || ""} onChange={(e) => handleAddNote(alert.id, e.target.value)} />
-                                </div>
-
-                                <div className="bg-white p-4 rounded-lg border">
-                                  <h4 className="font-medium mb-3">Response Timeline</h4>
-                                  <div className="space-y-3">
-                                    <div className="flex items-start gap-3">
-                                      <div className="w-2 h-2 bg-red-600 rounded-full mt-2"></div>
-                                      <div>
-                                        <p className="text-sm font-medium">SOS Triggered</p>
-                                        <p className="text-xs text-gray-600">{formatDateTime(alert.triggeredAt)} - Location: {alert.location}</p>
-                                      </div>
-                                    </div>
-                                    {(sosOfficers[alert.id] || alert.assignedOfficer) && (
-                                      <div className="flex items-start gap-3">
-                                        <div className="w-2 h-2 bg-yellow-600 rounded-full mt-2"></div>
-                                        <div>
-                                          <p className="text-sm font-medium">Officer Assigned</p>
-                                          <p className="text-xs text-gray-600">{sosOfficers[alert.id] || alert.assignedOfficer}</p>
-                                        </div>
-                                      </div>
-                                    )}
-                                    {alert.currentStatus === "Resolved" && (
-                                      <div className="flex items-start gap-3">
-                                        <div className="w-2 h-2 bg-green-600 rounded-full mt-2"></div>
-                                        <div>
-                                          <p className="text-sm font-medium">Emergency Resolved</p>
-                                          <p className="text-xs text-gray-600">Victim is safe</p>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
+                                  <Label>Update Status</Label>
+                                  <Select value={alert.currentStatus} onValueChange={(value) => handleUpdateStatus(alert.id, value as SOSAlert["status"])}>
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="Active">🔴 Active</SelectItem>
+                                      <SelectItem value="Dispatched">🟡 Dispatched</SelectItem>
+                                      <SelectItem value="Resolved">🟢 Resolved</SelectItem>
+                                      <SelectItem value="False alarm">⚫ False alarm</SelectItem>
+                                    </SelectContent>
+                                  </Select>
                                 </div>
                               </div>
                             </TableCell>
@@ -689,8 +601,8 @@ export default function PoliceDashboard() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>Officer Profile</CardTitle>
-                  <CardDescription>Your registered account details</CardDescription>
+                  <CardTitle>Police Station Profile</CardTitle>
+                  <CardDescription>Station details</CardDescription>
                 </div>
                 {!isEditing && (
                   <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
@@ -719,32 +631,6 @@ export default function PoliceDashboard() {
                 ) : isEditing && editProfile ? (
                   <div className="space-y-4">
                     <div className="grid md:grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <Label>Full Name</Label>
-                        <Input value={editProfile.name} onChange={(e) => setEditProfile({ ...editProfile, name: e.target.value })} />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Email</Label>
-                        <Input type="email" value={editProfile.email} onChange={(e) => setEditProfile({ ...editProfile, email: e.target.value })} />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Badge Number</Label>
-                        <Input value={editProfile.badgeNumber} onChange={(e) => setEditProfile({ ...editProfile, badgeNumber: e.target.value })} />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Rank</Label>
-                        <Select value={editProfile.rank} onValueChange={(v) => setEditProfile({ ...editProfile, rank: v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="officer">Police Officer</SelectItem>
-                            <SelectItem value="corporal">Corporal</SelectItem>
-                            <SelectItem value="sergeant">Sergeant</SelectItem>
-                            <SelectItem value="lieutenant">Lieutenant</SelectItem>
-                            <SelectItem value="captain">Captain</SelectItem>
-                            <SelectItem value="chief">Chief</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
                       <div className="space-y-1">
                         <Label>Station Name</Label>
                         <Input value={editProfile.stationName} onChange={(e) => setEditProfile({ ...editProfile, stationName: e.target.value })} />
@@ -776,17 +662,40 @@ export default function PoliceDashboard() {
                   </div>
                 ) : (
                   <div className="grid md:grid-cols-2 gap-y-4 gap-x-8 text-sm text-gray-800">
-                    <div className="space-y-3">
-                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Full Name</span><span>{profile.name || "-"}</span></div>
-                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Email</span><span>{profile.email || "-"}</span></div>
-                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Badge Number</span><span>{profile.badgeNumber || "-"}</span></div>
-                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Rank</span><span>{profile.rank || "-"}</span></div>
-                    </div>
-                    <div className="space-y-3">
-                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Station</span><span>{profile.stationName || "-"}</span></div>
-                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Area</span><span>{profile.stationArea || "-"}</span></div>
-                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Location</span><span>{profile.stationLocation || "-"}</span></div>
-                      <div><span className="font-medium text-gray-500 block text-xs uppercase tracking-wide">Area Type</span><span>{profile.areaType || "-"}</span></div>
+                    <div className="col-span-2">
+                      <div className="rounded-xl border border-indigo-200 bg-white shadow-md p-6 flex flex-col md:flex-row gap-8 items-center">
+                        <div className="flex flex-col items-center md:items-start gap-2 w-full md:w-1/2">
+                          <span className="text-lg font-bold text-indigo-700">{profile.stationName || "-"}</span>
+                          <span className="text-sm text-gray-500">Police Station</span>
+                          <div className="mt-2 flex flex-col gap-1">
+                            <span className="font-semibold text-gray-700">Email:</span>
+                            <span className="text-base text-gray-900">{profile.email || "-"}</span>
+                          </div>
+                          <div className="mt-2 flex flex-col gap-1">
+                            <span className="font-semibold text-gray-700">Mobile:</span>
+                            <span className="text-base text-gray-900">{profile.mobile || "-"}</span>
+                          </div>
+                          <div className="mt-2 flex flex-col gap-1">
+                            <span className="font-semibold text-gray-700">Area:</span>
+                            <span className="text-base text-gray-900">{profile.stationArea || "-"}</span>
+                          </div>
+                          <div className="mt-2 flex flex-col gap-1">
+                            <span className="font-semibold text-gray-700">Location:</span>
+                            <span className="text-base text-gray-900">{profile.stationLocation || "-"}</span>
+                          </div>
+                          <div className="mt-2 flex flex-col gap-1">
+                            <span className="font-semibold text-gray-700">Area Type:</span>
+                            <span className="text-base text-gray-900 capitalize">{profile.areaType || "-"}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-center md:items-end w-full md:w-1/2">
+                          <div className="bg-indigo-100 rounded-full w-24 h-24 flex items-center justify-center mb-4">
+                            <svg width="48" height="48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="24" fill="#6366F1"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" font-size="20" fill="#fff">🏢</text></svg>
+                          </div>
+                          <span className="text-indigo-600 font-semibold text-lg">{profile.stationName || "-"}</span>
+                          <span className="text-gray-500 text-sm">{profile.stationArea || "-"} / {profile.areaType || "-"}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
