@@ -26,18 +26,31 @@ export class WebRTCManager {
         this.onRemoteStream?.(this.remoteStream);
       }
     };
+
+    this.peerConnection.onconnectionstatechange = () => {
+      this.onConnectionStateChange?.(this.peerConnection.connectionState);
+    };
   }
 
   public onIceCandidate?: (candidate: RTCIceCandidate) => void;
   public onRemoteStream?: (stream: MediaStream) => void;
+  public onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
 
   async startLocalStream(): Promise<MediaStream> {
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } as MediaTrackConstraints,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } as MediaTrackConstraints
       });
 
+      // Add all tracks to peer connection
       this.localStream.getTracks().forEach(track => {
         this.peerConnection.addTrack(track, this.localStream!);
       });
@@ -47,6 +60,15 @@ export class WebRTCManager {
       console.error('Error accessing media devices:', error);
       throw error;
     }
+  }
+
+  setLocalStream(stream: MediaStream): void {
+    this.localStream = stream;
+    
+    // Add all tracks to peer connection
+    stream.getTracks().forEach(track => {
+      this.peerConnection.addTrack(track, stream);
+    });
   }
 
   async createOffer(): Promise<RTCSessionDescriptionInit> {
@@ -88,5 +110,15 @@ export class WebRTCManager {
 
   getRemoteStream(): MediaStream | null {
     return this.remoteStream;
+  }
+
+  // Get connection state
+  getConnectionState(): RTCPeerConnectionState {
+    return this.peerConnection.connectionState;
+  }
+
+  // Get ice connection state
+  getIceConnectionState(): RTCIceConnectionState {
+    return this.peerConnection.iceConnectionState;
   }
 }

@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import { getAuth, browserSessionPersistence, setPersistence } from "firebase/auth";
 import { getDatabase } from "firebase/database";
 
@@ -12,7 +12,8 @@ const firebaseConfig = {
   databaseURL: `https://${import.meta.env.VITE_FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com/`
 };
 
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase only if it hasn't been initialized already
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 
 // Dev-only log to confirm the web client is pointed at the expected Firebase project
 if (import.meta.env.DEV) {

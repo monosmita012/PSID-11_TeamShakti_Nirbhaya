@@ -134,29 +134,32 @@ export default function UserDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 safe-area-top safe-area-bottom">
       {/* Header */}
-      <header className="bg-green-700 text-white shadow-lg">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
+      <header className="sticky top-0 z-10 bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg safe-area-top">
+        <div className="desktop-container py-6">
+          <div className="desktop-flex justify-between items-center gap-6">
             <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                <UserCheck className="w-8 h-8 text-white" />
+              </div>
               <div>
-                <h1 className="text-2xl">User Dashboard</h1>
-                <p className="text-green-100 text-sm">Community Safety Portal</p>
+                <h1 className="text-2xl lg:text-3xl xl:text-4xl font-bold">User Dashboard</h1>
+                <p className="text-green-100 text-base lg:text-lg">Community Safety Portal</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="text-white hover:bg-green-600 relative">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 relative w-12 h-12">
+                <Bell className="w-6 h-6" />
+                <span className="absolute top-1 right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={handleLogout}
-                className="text-white hover:bg-green-600"
+                className="text-white hover:bg-white/20 w-12 h-12"
               >
-                <LogOut className="w-5 h-5" />
+                <LogOut className="w-6 h-6" />
               </Button>
             </div>
           </div>
@@ -164,60 +167,85 @@ export default function UserDashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8 space-y-8">
-        <Tabs defaultValue="myreports" className="space-y-6">
-          <TabsList className="w-full grid grid-cols-3 h-14">
-            <TabsTrigger value="myreports" className="flex items-center justify-center gap-2 text-base font-bold h-full">
-              <FileText className="w-5 h-5" />
-              History
-            </TabsTrigger>
-            <TabsTrigger value="profile" className="flex items-center justify-center gap-2 text-base font-bold h-full">
-              <UserCheck className="w-5 h-5" />
-              Profile
-            </TabsTrigger>
-            <TabsTrigger value="guardians" className="flex items-center justify-center gap-2 text-base font-bold h-full">
-              <Bell className="w-5 h-5" />
-              Guardians
-            </TabsTrigger>
+      <main className="desktop-container py-8 space-y-8">
+        <Tabs defaultValue="myreports" className="space-y-8">
+          <TabsList className="w-full h-auto p-2 bg-white/80 backdrop-blur-sm shadow-xl rounded-2xl">
+            <div className="grid grid-cols-3 w-full max-w-2xl mx-auto">
+              <TabsTrigger 
+                value="myreports" 
+                className="flex flex-col lg:flex-row items-center justify-center gap-3 py-4 px-6 text-sm lg:text-base font-semibold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
+              >
+                <FileText className="w-5 h-5" />
+                <span>History</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="profile" 
+                className="flex flex-col lg:flex-row items-center justify-center gap-3 py-4 px-6 text-sm lg:text-base font-semibold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
+              >
+                <UserCheck className="w-5 h-5" />
+                <span>Profile</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="guardians" 
+                className="flex flex-col lg:flex-row items-center justify-center gap-3 py-4 px-6 text-sm lg:text-base font-semibold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all"
+              >
+                <Bell className="w-5 h-5" />
+                <span>Guardians</span>
+              </TabsTrigger>
+            </div>
           </TabsList>
 
           {/* My Reports Tab */}
           <TabsContent value="myreports">
-            <Card>
-              <CardHeader>
-                <CardTitle>My Reports</CardTitle>
-                <CardDescription>Track the status of your submitted reports</CardDescription>
+            <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm">
+              <CardHeader className="pb-6">
+                <CardTitle className="text-xl lg:text-2xl">My Reports</CardTitle>
+                <CardDescription className="text-base">Track the status of your submitted reports</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {reports.map((report) => (
-                    <div key={report.id} className="border rounded-lg p-4 hover:bg-gray-50">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="font-mono text-sm text-gray-600">{report.id}</p>
+                    <div key={report.id} className="border border-gray-200 rounded-2xl p-6 hover:bg-gray-50 hover:shadow-xl transition-all animate-mobile">
+                      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <p className="font-mono text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-lg">{report.id}</p>
                           </div>
-                          <p className="font-medium text-lg">{report.type}</p>
+                          <p className="font-bold text-xl lg:text-2xl">{report.type}</p>
                         </div>
-                        <p className="text-sm text-gray-700 font-medium">Status: {report.status}</p>
+                        <p className="text-base font-semibold px-4 py-2 bg-blue-100 text-blue-700 rounded-full whitespace-nowrap">
+                          Status: {report.status}
+                        </p>
                       </div>
 
-                      <div className="grid md:grid-cols-2 gap-3 text-sm">
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <Calendar className="w-4 h-4" />
-                          <span>Date: {report.date}</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                        <div className="flex items-center gap-3 text-gray-600 bg-gray-50 p-3 rounded-lg">
+                          <Calendar className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-gray-500">Date</p>
+                            <p className="font-medium">{report.date}</p>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <MapPin className="w-4 h-4" />
-                          <span>Location: {report.location}</span>
+                        <div className="flex items-center gap-3 text-gray-600 bg-gray-50 p-3 rounded-lg">
+                          <MapPin className="w-5 h-5 text-red-500 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-gray-500">Location</p>
+                            <p className="font-medium text-xs">{report.location}</p>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <Clock className="w-4 h-4" />
-                          <span>Response Time: {report.responseTime}</span>
+                        <div className="flex items-center gap-3 text-gray-600 bg-gray-50 p-3 rounded-lg">
+                          <Clock className="w-5 h-5 text-green-500 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-gray-500">Response</p>
+                            <p className="font-medium">{report.responseTime}</p>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <FileText className="w-4 h-4" />
-                          <span>Evidence: {report.evidenceUploaded ? "✓ Uploaded" : "None"}</span>
+                        <div className="flex items-center gap-3 text-gray-600 bg-gray-50 p-3 rounded-lg">
+                          <FileText className="w-5 h-5 text-purple-500 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-gray-500">Evidence</p>
+                            <p className="font-medium">{report.evidenceUploaded ? "✓ Uploaded" : "None"}</p>
+                          </div>
                         </div>
                       </div>
                     </div>

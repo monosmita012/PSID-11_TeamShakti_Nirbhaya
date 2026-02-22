@@ -100,107 +100,128 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
-            <Shield className="w-6 h-6 text-red-600" />
-          </div>
-          <CardTitle className="text-2xl font-bold text-gray-900">
-            Women Safety System
-          </CardTitle>
-          <CardDescription>
-            {isLogin ? "Sign in to your account" : "Create a new account"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10"
-                  required
-                />
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-pink-50 to-purple-50 flex items-center justify-center p-4 safe-area-top safe-area-bottom">
+      <div className="w-full max-w-lg mx-auto lg:max-w-xl">
+        <Card className="card-responsive shadow-2xl border-0 backdrop-blur-sm bg-white/95">
+          <CardHeader className="text-center space-y-6 pb-8">
+            <div className="mx-auto w-20 h-20 bg-gradient-to-r from-red-500 to-pink-500 rounded-full flex items-center justify-center shadow-2xl animate-mobile hover:scale-105">
+              <Shield className="w-10 h-10 text-white" />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10"
-                  required
-                />
-              </div>
+            <div className="space-y-3">
+              <CardTitle className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
+                Women Safety System
+              </CardTitle>
+              <CardDescription className="text-base lg:text-lg text-gray-600">
+                {isLogin ? "Sign in to your account" : "Create a new account"}
+              </CardDescription>
             </div>
-
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="role">Select Your Role</Label>
-                <Select value={role} onValueChange={setRole} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="victim">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4" />
-                        Victim
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="police">
-                      <div className="flex items-center gap-2">
-                        <Shield className="w-4 h-4" />
-                        Police Officer
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+          </CardHeader>
+          <CardContent className="space-y-8">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-4">
+                <Label htmlFor="email" className="text-base font-medium text-gray-700">Email</Label>
+                <div className="relative group">
+                  <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-red-500 transition-colors" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-12 h-14 text-base border-gray-200 rounded-xl focus:border-red-500 focus:ring-red-500/20 transition-all"
+                    required
+                  />
+                </div>
               </div>
-            )}
 
-            {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
-                <AlertTriangle className="w-4 h-4 text-red-600" />
-                <span className="text-sm text-red-700">{error}</span>
+              <div className="space-y-4">
+                <Label htmlFor="password" className="text-base font-medium text-gray-700">Password</Label>
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-red-500 transition-colors" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-12 h-14 text-base border-gray-200 rounded-xl focus:border-red-500 focus:ring-red-500/20 transition-all"
+                    required
+                  />
+                </div>
               </div>
-            )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Please wait..." : isLogin ? "Sign In" : "Sign Up"}
-            </Button>
-          </form>
+              {!isLogin && (
+                <div className="space-y-4">
+                  <Label htmlFor="role" className="text-base font-medium text-gray-700">Select Your Role</Label>
+                  <Select value={role} onValueChange={setRole} required>
+                    <SelectTrigger className="h-14 text-base border-gray-200 rounded-xl focus:border-red-500 focus:ring-red-500/20">
+                      <SelectValue placeholder="Select your role" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-gray-200">
+                      <SelectItem value="victim" className="rounded-lg p-4">
+                        <div className="flex items-center gap-4 p-2">
+                          <User className="w-6 h-6 text-red-500" />
+                          <div>
+                            <div className="font-semibold text-base">Victim</div>
+                            <div className="text-sm text-gray-500">Get help and support</div>
+                          </div>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="police" className="rounded-lg p-4">
+                        <div className="flex items-center gap-4 p-2">
+                          <Shield className="w-6 h-6 text-blue-500" />
+                          <div>
+                            <div className="font-semibold text-base">Police Officer</div>
+                            <div className="text-sm text-gray-500">Respond to emergencies</div>
+                          </div>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setIsLogin(!isLogin);
-                setError("");
-              }}
-              className="text-sm text-red-600 hover:text-red-700 font-medium"
-            >
-              {isLogin 
-                ? "Don't have an account? Sign up" 
-                : "Already have an account? Sign in"
-              }
-            </button>
-          </div>
-        </CardContent>
-      </Card>
+              {error && (
+                <div className="flex items-start gap-4 p-6 bg-red-50 border border-red-200 rounded-xl animate-mobile">
+                  <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+                  <span className="text-base text-red-700 leading-relaxed">{error}</span>
+                </div>
+              )}
+
+              <Button 
+                type="submit" 
+                className="w-full h-14 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white font-semibold rounded-xl shadow-xl hover:shadow-2xl transform hover:scale-[1.02] transition-all duration-200 text-lg" 
+                disabled={loading}
+              >
+                {loading ? (
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Please wait...
+                  </div>
+                ) : (
+                  isLogin ? "Sign In" : "Sign Up"
+                )}
+              </Button>
+            </form>
+
+            <div className="text-center pt-6 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setError("");
+                }}
+                className="text-base text-red-600 hover:text-red-700 font-semibold hover:underline transition-colors"
+              >
+                {isLogin 
+                  ? "Don't have an account? Sign up" 
+                  : "Already have an account? Sign in"
+                }
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

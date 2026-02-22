@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { MessageCircle, Send, Shield, User } from "lucide-react";
+import { MessageCircle, Send, Shield, User, MapPin } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -15,6 +15,7 @@ interface Message {
   senderName: string;
   senderRole: "victim" | "police";
   timestamp: number;
+  location?: { lat: number; lng: number; address?: string };
 }
 
 interface ChatSystemProps {
@@ -27,13 +28,23 @@ export default function ChatSystem({ sessionId, userRole }: ChatSystemProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isConnected, setIsConnected] = useState(false);
+  const [sessionLocation, setSessionLocation] = useState<{ lat: number; lng: number; address?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!sessionId) return;
 
+    // Get session data including location
+    const sessionRef = ref(database, `sessions/${sessionId}`);
+    const unsubscribeSession = onValue(sessionRef, (snapshot) => {
+      const sessionData = snapshot.val();
+      if (sessionData && sessionData.location) {
+        setSessionLocation(sessionData.location);
+      }
+    });
+
     const chatRef = ref(database, `chats/${sessionId}`);
-    const unsubscribe = onValue(chatRef, (snapshot) => {
+    const unsubscribeChat = onValue(chatRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const messagesList = Object.entries(data)
@@ -47,7 +58,10 @@ export default function ChatSystem({ sessionId, userRole }: ChatSystemProps) {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeSession();
+      unsubscribeChat();
+    };
   }, [sessionId]);
 
   useEffect(() => {
@@ -95,6 +109,20 @@ export default function ChatSystem({ sessionId, userRole }: ChatSystemProps) {
           </Badge>
           <span className="text-xs">Real-time communication with emergency services</span>
         </CardDescription>
+        {/* Location Info for Police */}
+        {userRole === "police" && sessionLocation && (
+          <div className="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-center gap-2 text-sm">
+              <MapPin className="w-4 h-4 text-blue-600" />
+              <div>
+                <p className="text-xs text-blue-600 font-medium">Victim Location:</p>
+                <p className="text-sm text-blue-800">
+                  {sessionLocation.address || `${sessionLocation.lat.toFixed(6)}, ${sessionLocation.lng.toFixed(6)}`}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </CardHeader>
       
       <CardContent className="flex-1 flex flex-col p-0">
@@ -134,6 +162,15 @@ export default function ChatSystem({ sessionId, userRole }: ChatSystemProps) {
                       {formatTime(message.timestamp)}
                     </span>
                   </div>
+                  {/* Show location with victim messages */}
+                  {message.senderRole === "victim" && message.location && (
+                    <div className="flex items-center gap-1 text-xs opacity-70">
+                      <MapPin className="w-3 h-3" />
+                      <span>
+                        {message.location.address || `${message.location.lat.toFixed(4)}, ${message.location.lng.toFixed(4)}`}
+                      </span>
+                    </div>
+                  )}
                   <p className="text-sm break-words">{message.text}</p>
                 </div>
               </div>

@@ -8,6 +8,10 @@ import VictimProfile from "./pages/VictimProfile";
 import PoliceDashboardNew from "./pages/PoliceDashboardNew";
 import AdminDashboard from "./pages/AdminDashboard";
 import SOSPage from "./pages/SOSPage";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import PoliceDashboard from "./pages/PoliceDashboard";
+import UserDashboard from "./pages/UserDashboard";
 
 // Simple auth guard — only checks if the user is signed in.
 const AuthGuard = ({ children }: { children: ReactNode }) => {
@@ -72,6 +76,30 @@ export const router = createBrowserRouter([
     element: (
       <AuthGuard>
         <AdminDashboard />
+      </AuthGuard>
+    ),
+  },
+  {
+    path: "/user",
+    element: (
+      <AuthGuard>
+        <UserDashboard />
+      </AuthGuard>
+    ),
+  },
+  {
+    path: "/login",
+    Component: Login,
+  },
+  {
+    path: "/register", 
+    Component: Register,
+  },
+  {
+    path: "/police",
+    element: (
+      <AuthGuard>
+        <PoliceDashboard />
       </AuthGuard>
     ),
   },

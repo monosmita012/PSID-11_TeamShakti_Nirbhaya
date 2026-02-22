@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
-import { Shield, Video, MapPin, Clock, Users, LogOut, Phone, AlertTriangle } from "lucide-react";
+import { Shield, Video, MapPin, Clock, Users, LogOut, Phone, AlertTriangle, Bell } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { signOut, getAuth } from "firebase/auth";
-import { ref, onValue, update } from "firebase/database";
+import { ref, onValue, update, serverTimestamp } from "firebase/database";
 import { database } from "../firebase-config";
 import { WebRTCManager } from "../components/WebRTCManager";
 import ChatSystem from "../components/ChatSystem";
@@ -21,14 +21,29 @@ interface Session {
   timestamp: number;
   offer?: any;
   iceCandidates?: any[];
-  location?: { lat: number; lng: number };
+  location?: { lat: number; lng: number; address?: string };
   endedAt?: number;
+  victimName?: string;
+}
+
+interface PoliceAlert {
+  id: string;
+  type: string;
+  sessionId: string;
+  victimId: string;
+  victimName: string;
+  location: { lat: number; lng: number; address?: string };
+  address?: string;
+  timestamp: number;
+  status: string;
+  createdAt: any;
 }
 
 export default function PoliceDashboardNew() {
   const navigate = useNavigate();
   const auth = getAuth();
   const [activeSessions, setActiveSessions] = useState<Session[]>([]);
+  const [policeAlerts, setPoliceAlerts] = useState<PoliceAlert[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -44,11 +59,11 @@ export default function PoliceDashboardNew() {
 
     // Listen for active sessions
     const sessionsRef = ref(database, 'sessions');
-    const unsubscribe = onValue(sessionsRef, (snapshot) => {
+    const unsubscribeSessions = onValue(sessionsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const sessions = Object.values(data).filter(
-          (session: any) => session && session.status === 'active'
+          (session: any) => session && (session.status === 'active' || session.status === 'connecting') && !session.endedAt
         ) as Session[];
         setActiveSessions(sessions);
       } else {
@@ -56,8 +71,27 @@ export default function PoliceDashboardNew() {
       }
     });
 
+    // Listen for police alerts
+    const alertsRef = ref(database, 'policeAlerts');
+    const unsubscribeAlerts = onValue(alertsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const alerts = Object.entries(data)
+          .map(([id, alert]: [string, any]) => ({
+            id,
+            ...alert
+          }))
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .filter(alert => alert.status === 'active' && !alert.endedAt);
+        setPoliceAlerts(alerts);
+      } else {
+        setPoliceAlerts([]);
+      }
+    });
+
     return () => {
-      unsubscribe();
+      unsubscribeSessions();
+      unsubscribeAlerts();
       if (webrtcManager.current) {
         webrtcManager.current.close();
       }
@@ -73,26 +107,45 @@ export default function PoliceDashboardNew() {
       webrtcManager.current = new WebRTCManager();
       
       webrtcManager.current.onRemoteStream = (stream) => {
+        console.log('📹 Received remote stream from victim');
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = stream;
         }
         setIsConnected(true);
         setIsConnecting(false);
+        
+        // Show notification when stream is received
+        console.log('✅ Live video stream connected successfully');
+      };
+
+      // Listen for connection state changes
+      webrtcManager.current.onConnectionStateChange = (state: RTCPeerConnectionState) => {
+        console.log('WebRTC Connection State:', state);
+        if (state === 'connected') {
+          setIsConnected(true);
+          setIsConnecting(false);
+        } else if (state === 'failed' || state === 'disconnected') {
+          setIsConnected(false);
+          setIsConnecting(false);
+        }
       };
 
       // Create answer to victim's offer
       if (session.offer) {
+        console.log('📞 Creating answer to victim offer');
         const answer = await webrtcManager.current.createAnswer(session.offer);
         
         // Save answer to Firebase
         const sessionRef = ref(database, `sessions/${session.sessionId}`);
         await update(sessionRef, {
           ...session,
-          answer: answer
+          answer: answer,
+          policeConnected: serverTimestamp()
         });
 
         // Handle ICE candidates
         if (session.iceCandidates) {
+          console.log('🧊 Adding ICE candidates:', session.iceCandidates.length);
           for (const candidate of session.iceCandidates) {
             await webrtcManager.current.addIceCandidate(candidate);
           }
@@ -129,8 +182,38 @@ export default function PoliceDashboardNew() {
         remoteVideoRef.current.srcObject = null;
       }
 
+      // Update session status to ended
+      if (selectedSession) {
+        const sessionRef = ref(database, `sessions/${selectedSession.sessionId}`);
+        await update(sessionRef, {
+          ...selectedSession,
+          status: 'ended',
+          policeDisconnectedAt: serverTimestamp()
+        });
+
+        // Also update the corresponding police alert
+        const alertsRef = ref(database, 'policeAlerts');
+        const snapshot = await new Promise((resolve) => {
+          onValue(alertsRef, (data) => resolve(data.val()));
+        });
+        
+        if (snapshot) {
+          Object.entries(snapshot).forEach(([id, alert]: [string, any]) => {
+            if (alert.sessionId === selectedSession.sessionId && alert.status === 'active') {
+              const alertRef = ref(database, `policeAlerts/${id}`);
+              update(alertRef, { 
+                status: 'ended', 
+                policeDisconnectedAt: serverTimestamp() 
+              });
+            }
+          });
+        }
+      }
+
       setIsConnected(false);
       setSelectedSession(null);
+      
+      console.log('✅ Disconnected from emergency session');
     } catch (error) {
       console.error('Error disconnecting:', error);
     }
@@ -163,26 +246,115 @@ export default function PoliceDashboardNew() {
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-              <Shield className="w-5 h-5 text-blue-600" />
+            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+              <Shield className="w-5 h-5 text-white" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Police Dashboard</h1>
-              <p className="text-sm text-gray-600">Women Safety System</p>
+              <p className="text-sm text-gray-600">Emergency Response System</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <NotificationSystem />
-            <Badge variant="outline" className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              {activeSessions.length} Active Sessions
-            </Badge>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Bell className="w-5 h-5 text-gray-600" />
+              {policeAlerts.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+              )}
+            </div>
             <Button onClick={handleLogout} variant="outline" className="flex items-center gap-2">
               <LogOut className="w-4 h-4" />
               Logout
             </Button>
           </div>
         </div>
+
+        {/* Emergency Alerts Section */}
+        {policeAlerts.length > 0 && (
+          <div className="mb-6">
+            <Card className="border-red-200 bg-red-50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-red-700">
+                  <AlertTriangle className="w-5 h-5" />
+                  Emergency Alerts ({policeAlerts.length})
+                </CardTitle>
+                <CardDescription>
+                  New emergency requests requiring immediate attention
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {policeAlerts.slice(0, 3).map((alert) => (
+                    <div key={alert.id} className="border border-red-200 rounded-lg p-4 bg-white">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-semibold text-lg text-red-700">
+                            {alert.victimName} - Emergency Alert
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            Session ID: {alert.sessionId}
+                          </p>
+                        </div>
+                        <Badge variant="destructive" className="animate-pulse">
+                          NEW
+                        </Badge>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-red-500" />
+                          <div>
+                            <p className="text-xs text-gray-500">Location</p>
+                            <p className="text-sm font-medium">
+                              {alert.address || `${alert.location.lat.toFixed(6)}, ${alert.location.lng.toFixed(6)}`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-blue-500" />
+                          <div>
+                            <p className="text-xs text-gray-500">Time</p>
+                            <p className="text-sm font-medium">
+                              {formatTime(alert.timestamp)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => connectToSession({
+                            sessionId: alert.sessionId,
+                            victimId: alert.victimId,
+                            status: 'active',
+                            timestamp: alert.timestamp,
+                            location: alert.location,
+                            victimName: alert.victimName
+                          } as Session)}
+                          disabled={isConnecting}
+                          className="flex items-center gap-2"
+                        >
+                          <Phone className="w-4 h-4" />
+                          {isConnecting ? 'Connecting...' : 'Respond to Emergency'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => window.open(
+                            `https://www.google.com/maps?q=${alert.location.lat},${alert.location.lng}`,
+                            '_blank'
+                          )}
+                          className="flex items-center gap-2"
+                        >
+                          <MapPin className="w-4 h-4" />
+                          View on Map
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Active Sessions List */}
