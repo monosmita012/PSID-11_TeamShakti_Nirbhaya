@@ -1,18 +1,16 @@
-const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  { urls: 'stun:stun.stunprotocol.org:3478' },
-];
-
 export class WebRTCManager {
   private peerConnection: RTCPeerConnection;
   private localStream: MediaStream | null = null;
   private remoteStream: MediaStream | null = null;
 
-  constructor(config?: { iceServers?: RTCIceServer[] }) {
+  constructor() {
     this.peerConnection = new RTCPeerConnection({
-      iceServers: config?.iceServers?.length ? config.iceServers : DEFAULT_ICE_SERVERS,
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun.stunprotocol.org:3478' }
+      ]
     });
 
     this.setupPeerConnection();

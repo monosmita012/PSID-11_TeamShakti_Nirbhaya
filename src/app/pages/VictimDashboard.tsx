@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
-import { Shield, Video, VideoOff, Mic, MicOff, Phone, AlertTriangle, MapPin, LogOut } from "lucide-react";
+import { Shield, Video, VideoOff, Mic, MicOff, Phone, AlertTriangle, MapPin, LogOut, User } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -8,11 +8,19 @@ import { signOut, getAuth } from "firebase/auth";
 import { ref, push, set, onValue, serverTimestamp, update } from "firebase/database";
 import { database } from "../firebase-config";
 import { WebRTCManager } from "../components/WebRTCManager";
-import { getIceServers } from "../utils/iceServers";
 import PanicButton from "../components/PanicButton";
 import EmergencyContacts from "../components/EmergencyContacts";
 import ChatSystem from "../components/ChatSystem";
-import ThemeToggle from "../components/ThemeToggle";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 
 interface Location {
   lat: number;
@@ -174,9 +182,8 @@ export default function VictimDashboard() {
         setAddress(currentLocation.address);
       }
 
-      // Initialize WebRTC with TURN servers for cross-network (different devices) connectivity
-      const iceServers = await getIceServers();
-      webrtcManager.current = new WebRTCManager({ iceServers });
+      // Initialize WebRTC
+      webrtcManager.current = new WebRTCManager();
       
       // Get user media with enhanced constraints
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -368,13 +375,15 @@ export default function VictimDashboard() {
     }
   };
 
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      navigate('/');
+      navigate('/auth');
     } catch (error) {
       console.error('Error signing out:', error);
     }
+    setShowLogoutConfirm(false);
   };
 
   return (
@@ -395,9 +404,16 @@ export default function VictimDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <ThemeToggle />
+              <Button
+                onClick={() => navigate('/profile')}
+                variant="outline"
+                className="flex items-center gap-2 h-12 px-6 text-base border-pink-300 text-pink-600 hover:bg-pink-50"
+              >
+                <User className="w-5 h-5" />
+                Profile
+              </Button>
               <Button 
-                onClick={handleLogout} 
+                onClick={() => setShowLogoutConfirm(true)} 
                 variant="outline" 
                 className="flex items-center gap-2 h-12 px-6 text-base"
               >
@@ -564,6 +580,23 @@ export default function VictimDashboard() {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to logout? You will need to sign in again to access your account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLogout} className="bg-red-500 hover:bg-red-600">
+              Logout
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

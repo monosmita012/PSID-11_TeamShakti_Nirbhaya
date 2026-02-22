@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Shield, Users, AlertTriangle, Settings, LogOut, BarChart, Activity, Clock, MapPin } from "lucide-react";
+import { Shield, Users, AlertTriangle, Settings, LogOut, BarChart, Activity, Clock, MapPin, User } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -11,6 +11,16 @@ import { signOut, getAuth } from "firebase/auth";
 import { ref, onValue, get, update, remove } from "firebase/database";
 import { database } from "../firebase-config";
 import SessionAnalytics from "../components/SessionAnalytics";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 
 interface User {
   uid: string;
@@ -113,13 +123,15 @@ export default function AdminDashboard() {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      navigate('/');
+      navigate('/auth');
     } catch (error) {
       console.error('Error signing out:', error);
     }
+    setShowLogoutConfirm(false);
   };
 
   if (!systemStats) {
@@ -131,7 +143,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50 p-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
@@ -144,10 +156,16 @@ export default function AdminDashboard() {
               <p className="text-sm text-gray-600">System Management</p>
             </div>
           </div>
-          <Button onClick={handleLogout} variant="outline" className="flex items-center gap-2">
-            <LogOut className="w-4 h-4" />
-            Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => navigate('/profile')} variant="outline" className="flex items-center gap-2 border-purple-300 text-purple-600 hover:bg-purple-50">
+              <User className="w-4 h-4" />
+              Profile
+            </Button>
+            <Button onClick={() => setShowLogoutConfirm(true)} variant="outline" className="flex items-center gap-2">
+              <LogOut className="w-4 h-4" />
+              Logout
+            </Button>
+          </div>
         </div>
 
         {/* System Stats */}
@@ -346,6 +364,23 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to logout? You will need to sign in again to access your account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLogout} className="bg-red-500 hover:bg-red-600">
+              Logout
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

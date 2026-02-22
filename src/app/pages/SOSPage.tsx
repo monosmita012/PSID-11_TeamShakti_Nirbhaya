@@ -171,7 +171,7 @@ export default function SOSPage() {
             </div>
           </div>
           <Button 
-            onClick={() => navigate('/victim-profile')}
+            onClick={() => navigate('/profile')}
             variant="outline"
             className="flex items-center gap-2"
           >

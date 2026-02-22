@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
-import { Shield, Video, MapPin, Clock, Users, LogOut, Phone, AlertTriangle, Bell } from "lucide-react";
+import { Shield, Video, MapPin, Clock, Users, LogOut, Phone, AlertTriangle, Bell, User } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -8,11 +8,20 @@ import { signOut, getAuth } from "firebase/auth";
 import { ref, onValue, update, serverTimestamp, get } from "firebase/database";
 import { database } from "../firebase-config";
 import { WebRTCManager } from "../components/WebRTCManager";
-import { getIceServers } from "../utils/iceServers";
 import ChatSystem from "../components/ChatSystem";
 import NotificationSystem from "../components/NotificationSystem";
 import { NotificationService } from "../services/NotificationService";
 import MapView from "../components/MapView";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 import SessionRecorder from "../components/SessionRecorder";
 
 interface Session {
@@ -49,6 +58,7 @@ export default function PoliceDashboardNew() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const webrtcManager = useRef<WebRTCManager | null>(null);
@@ -115,9 +125,8 @@ export default function PoliceDashboardNew() {
         return;
       }
 
-      // Initialize WebRTC with TURN servers for cross-network (different devices) connectivity
-      const iceServers = await getIceServers();
-      webrtcManager.current = new WebRTCManager({ iceServers });
+      // Initialize WebRTC manager
+      webrtcManager.current = new WebRTCManager();
       
       webrtcManager.current.onRemoteStream = (stream) => {
         console.log('📹 Received remote stream from victim');
@@ -247,10 +256,11 @@ export default function PoliceDashboardNew() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      navigate('/');
+      navigate('/auth');
     } catch (error) {
       console.error('Error signing out:', error);
     }
+    setShowLogoutConfirm(false);
   };
 
   const formatTime = (timestamp: number) => {
@@ -286,7 +296,11 @@ export default function PoliceDashboardNew() {
                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
               )}
             </div>
-            <Button onClick={handleLogout} variant="outline" className="flex items-center gap-2">
+            <Button onClick={() => navigate('/profile')} variant="outline" className="flex items-center gap-2 border-blue-300 text-blue-600 hover:bg-blue-50">
+              <User className="w-4 h-4" />
+              Profile
+            </Button>
+            <Button onClick={() => setShowLogoutConfirm(true)} variant="outline" className="flex items-center gap-2">
               <LogOut className="w-4 h-4" />
               Logout
             </Button>
@@ -570,6 +584,23 @@ export default function PoliceDashboardNew() {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to logout? You will need to sign in again to access your account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLogout} className="bg-red-500 hover:bg-red-600">
+              Logout
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

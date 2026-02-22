@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { User, Phone, MapPin, Edit2, Save, X } from "lucide-react";
+import { useNavigate } from "react-router";
+import { User, Phone, MapPin, Edit2, Save, X, ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -8,29 +9,32 @@ import { getAuth, updateProfile } from "firebase/auth";
 import { ref, set, get, update } from "firebase/database";
 import { database } from "../firebase-config";
 
-interface VictimProfile {
+interface ProfileData {
   name: string;
   phone: string;
   email: string;
+  age: string;
   guardianName: string;
   guardianPhone: string;
   address: string;
-  role: "victim";
+  role?: string;
 }
 
 export default function VictimProfile() {
+  const navigate = useNavigate();
   const auth = getAuth();
-  const [profile, setProfile] = useState<VictimProfile | null>(null);
+  const [profile, setProfile] = useState<ProfileData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState<VictimProfile>({
+  const [formData, setFormData] = useState<ProfileData>({
     name: "",
     phone: "",
     email: "",
+    age: "",
     guardianName: "",
     guardianPhone: "",
-    address: "",
-    role: "victim"
+    address: ""
   });
+  const [loading, setLoading] = useState(true);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [nearestStations, setNearestStations] = useState<any[]>([]);
 
@@ -41,18 +45,39 @@ export default function VictimProfile() {
 
   const fetchProfile = async () => {
     if (!auth.currentUser) return;
-
+    setLoading(true);
     try {
       const profileRef = ref(database, `users/${auth.currentUser.uid}`);
       const snapshot = await get(profileRef);
       const data = snapshot.val();
       
-      if (data) {
-        setProfile(data);
-        setFormData(data);
-      }
+      const merged = {
+        name: data?.name ?? auth.currentUser.displayName ?? "",
+        phone: data?.phone ?? "",
+        email: data?.email ?? auth.currentUser.email ?? "",
+        age: data?.age ?? "",
+        guardianName: data?.guardianName ?? "",
+        guardianPhone: data?.guardianPhone ?? "",
+        address: data?.address ?? "",
+        role: data?.role
+      };
+      setProfile(merged);
+      setFormData(merged);
     } catch (error) {
       console.error("Error fetching profile:", error);
+      const fallback = {
+        name: auth.currentUser.displayName ?? "",
+        phone: "",
+        email: auth.currentUser.email ?? "",
+        age: "",
+        guardianName: "",
+        guardianPhone: "",
+        address: ""
+      };
+      setProfile(fallback);
+      setFormData(fallback);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -85,17 +110,17 @@ export default function VictimProfile() {
 
   const handleSave = async () => {
     if (!auth.currentUser) return;
-
     try {
-      // Update Firebase profile
       const profileRef = ref(database, `users/${auth.currentUser.uid}`);
-      await set(profileRef, formData);
-
-      // Update Firebase Auth profile
-      await updateProfile(auth.currentUser, {
-        displayName: formData.name
-      });
-
+      const existing = profile ? (await get(profileRef)).val() : {};
+      const toSave = {
+        ...existing,
+        ...formData,
+        role: existing?.role ?? "victim",
+        email: formData.email || auth.currentUser.email
+      };
+      await set(profileRef, toSave);
+      await updateProfile(auth.currentUser, { displayName: formData.name });
       setProfile(formData);
       setIsEditing(false);
     } catch (error) {
@@ -124,20 +149,27 @@ export default function VictimProfile() {
     return `https://www.google.com/maps?q=${location.lat},${location.lng}`;
   };
 
-  if (!profile && !isEditing) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-10 w-10 border-2 border-orange-500 border-t-transparent"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 p-4">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Victim Profile</h1>
-          <p className="text-gray-600">Manage your emergency information and contacts</p>
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" onClick={() => navigate(-1)} className="border-orange-300 text-orange-600 hover:bg-orange-50">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Profile</h1>
+              <p className="text-gray-600">Manage your emergency information and contacts</p>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -155,14 +187,14 @@ export default function VictimProfile() {
                   </CardDescription>
                 </div>
                 {!isEditing ? (
-                  <Button onClick={handleSave} className="flex items-center gap-2">
-                    <Save className="w-4 h-4" />
-                    Save
-                  </Button>
-                ) : (
-                  <Button onClick={() => setIsEditing(true)} variant="outline" className="flex items-center gap-2">
+                  <Button onClick={() => setIsEditing(true)} variant="outline" className="flex items-center gap-2 bg-white border-orange-300 text-orange-600 hover:bg-orange-50">
                     <Edit2 className="w-4 h-4" />
                     Edit
+                  </Button>
+                ) : (
+                  <Button onClick={handleSave} className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600">
+                    <Save className="w-4 h-4" />
+                    Save
                   </Button>
                 )}
               </CardHeader>
@@ -198,6 +230,19 @@ export default function VictimProfile() {
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       disabled={!isEditing}
                       placeholder="Your email address"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="age">Age</Label>
+                    <Input
+                      id="age"
+                      type="number"
+                      min="1"
+                      max="120"
+                      value={formData.age}
+                      onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Your age"
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2">

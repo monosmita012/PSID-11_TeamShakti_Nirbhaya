@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { Shield, Mail, Lock, User, AlertTriangle } from "lucide-react";
+import { Shield, Mail, Lock, User, AlertTriangle, Phone, UserCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -10,17 +10,17 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfi
 import { ref, set } from "firebase/database";
 import { auth, database } from "../firebase-config";
 
-interface User {
-  role: string;
-  email: string;
-}
-
 export default function AuthPage() {
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [age, setAge] = useState("");
+  const [guardianName, setGuardianName] = useState("");
+  const [guardianPhone, setGuardianPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -70,22 +70,51 @@ export default function AuthPage() {
           setLoading(false);
           return;
         }
+        if (!name.trim()) {
+          setError("Please enter your name");
+          setLoading(false);
+          return;
+        }
+        if (!phone.trim()) {
+          setError("Please enter your phone number");
+          setLoading(false);
+          return;
+        }
+        if (!age.trim()) {
+          setError("Please enter your age");
+          setLoading(false);
+          return;
+        }
+        if (!guardianName.trim()) {
+          setError("Please enter guardian name");
+          setLoading(false);
+          return;
+        }
+        if (!guardianPhone.trim()) {
+          setError("Please enter guardian phone number");
+          setLoading(false);
+          return;
+        }
 
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         
-        // Save user role to database
-        await set(ref(database, `users/${userCredential.user.uid}`), {
-          role: role,
-          email: email,
+        const userData = {
+          role,
+          email,
+          name: name.trim(),
+          phone: phone.trim(),
+          age: age.trim(),
+          guardianName: guardianName.trim(),
+          guardianPhone: guardianPhone.trim(),
           createdAt: new Date().toISOString()
-        });
+        };
+        
+        await set(ref(database, `users/${userCredential.user.uid}`), userData);
 
-        // Update profile
         await updateProfile(userCredential.user, {
-          displayName: role.charAt(0).toUpperCase() + role.slice(1)
+          displayName: name.trim()
         });
 
-        // Redirect to appropriate dashboard
         if (role === 'police') {
           navigate('/police-dashboard');
         } else {
@@ -151,6 +180,81 @@ export default function AuthPage() {
               </div>
 
               {!isLogin && (
+                <>
+                <div className="space-y-4">
+                  <Label htmlFor="name" className="text-base font-medium text-gray-700">Full Name</Label>
+                  <div className="relative group">
+                    <User className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-red-500 transition-colors" />
+                    <Input
+                      id="name"
+                      type="text"
+                      placeholder="Enter your full name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="pl-12 h-14 text-base border-gray-200 rounded-xl focus:border-red-500"
+                      required={!isLogin}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <Label htmlFor="phone" className="text-base font-medium text-gray-700">Phone Number</Label>
+                  <div className="relative group">
+                    <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-red-500 transition-colors" />
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="Enter your phone number"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="pl-12 h-14 text-base border-gray-200 rounded-xl focus:border-red-500"
+                      required={!isLogin}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <Label htmlFor="age" className="text-base font-medium text-gray-700">Age</Label>
+                  <Input
+                    id="age"
+                    type="number"
+                    min="1"
+                    max="120"
+                    placeholder="Enter your age"
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    className="h-14 text-base border-gray-200 rounded-xl focus:border-red-500"
+                    required={!isLogin}
+                  />
+                </div>
+                <div className="space-y-4">
+                  <Label htmlFor="guardianName" className="text-base font-medium text-gray-700">Guardian Name</Label>
+                  <div className="relative group">
+                    <UserCircle className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-red-500 transition-colors" />
+                    <Input
+                      id="guardianName"
+                      type="text"
+                      placeholder="Enter guardian/parent name"
+                      value={guardianName}
+                      onChange={(e) => setGuardianName(e.target.value)}
+                      className="pl-12 h-14 text-base border-gray-200 rounded-xl focus:border-red-500"
+                      required={!isLogin}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <Label htmlFor="guardianPhone" className="text-base font-medium text-gray-700">Guardian Phone Number</Label>
+                  <div className="relative group">
+                    <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-red-500 transition-colors" />
+                    <Input
+                      id="guardianPhone"
+                      type="tel"
+                      placeholder="Enter guardian phone number"
+                      value={guardianPhone}
+                      onChange={(e) => setGuardianPhone(e.target.value)}
+                      className="pl-12 h-14 text-base border-gray-200 rounded-xl focus:border-red-500"
+                      required={!isLogin}
+                    />
+                  </div>
+                </div>
                 <div className="space-y-4">
                   <Label htmlFor="role" className="text-base font-medium text-gray-700">Select Your Role</Label>
                   <Select value={role} onValueChange={setRole} required>
@@ -179,6 +283,7 @@ export default function AuthPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                </>
               )}
 
               {error && (
