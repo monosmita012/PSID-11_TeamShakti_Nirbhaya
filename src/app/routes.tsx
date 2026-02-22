@@ -2,9 +2,10 @@ import { createBrowserRouter, Navigate } from "react-router";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import PoliceDashboard from "./pages/PoliceDashboard";
+import AuthPage from "./pages/AuthPage";
+import VictimDashboard from "./pages/VictimDashboard";
+import PoliceDashboardNew from "./pages/PoliceDashboardNew";
+import AdminDashboard from "./pages/AdminDashboard";
 
 // Simple auth guard — only checks if the user is signed in.
 const AuthGuard = ({ children }: { children: ReactNode }) => {
@@ -19,28 +20,40 @@ const AuthGuard = ({ children }: { children: ReactNode }) => {
   }, []);
 
   if (state === "loading") return null;
-  if (state === "unauth") return <Navigate to="/login" replace />;
+  if (state === "unauth") return <Navigate to="/auth" replace />;
   return <>{children}</>;
 };
 
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <Navigate to="/login" replace />,
+    element: <Navigate to="/auth" replace />,
   },
   {
-    path: "/login",
-    Component: Login,
+    path: "/auth",
+    Component: AuthPage,
   },
   {
-    path: "/register",
-    Component: Register,
-  },
-  {
-    path: "/police",
+    path: "/victim-dashboard",
     element: (
       <AuthGuard>
-        <PoliceDashboard />
+        <VictimDashboard />
+      </AuthGuard>
+    ),
+  },
+  {
+    path: "/police-dashboard",
+    element: (
+      <AuthGuard>
+        <PoliceDashboardNew />
+      </AuthGuard>
+    ),
+  },
+  {
+    path: "/admin-dashboard",
+    element: (
+      <AuthGuard>
+        <AdminDashboard />
       </AuthGuard>
     ),
   },

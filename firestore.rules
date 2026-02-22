@@ -1,8 +1,15 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Allow authenticated users to read/write their own station profile
     match /station_profiles/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow read/write for any authenticated user during development
+    // Remove this in production for better security
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }
