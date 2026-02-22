@@ -4,8 +4,10 @@ import type { ReactNode } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import AuthPage from "./pages/AuthPage";
 import VictimDashboard from "./pages/VictimDashboard";
+import VictimProfile from "./pages/VictimProfile";
 import PoliceDashboardNew from "./pages/PoliceDashboardNew";
 import AdminDashboard from "./pages/AdminDashboard";
+import SOSPage from "./pages/SOSPage";
 
 // Simple auth guard — only checks if the user is signed in.
 const AuthGuard = ({ children }: { children: ReactNode }) => {
@@ -38,6 +40,22 @@ export const router = createBrowserRouter([
     element: (
       <AuthGuard>
         <VictimDashboard />
+      </AuthGuard>
+    ),
+  },
+  {
+    path: "/victim-profile",
+    element: (
+      <AuthGuard>
+        <VictimProfile />
+      </AuthGuard>
+    ),
+  },
+  {
+    path: "/sos",
+    element: (
+      <AuthGuard>
+        <SOSPage />
       </AuthGuard>
     ),
   },
