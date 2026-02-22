@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { User, Phone, MapPin, Edit2, Save, X, ArrowLeft } from "lucide-react";
+import { User, Phone, MapPin, Edit2, Save, X, ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { getAuth, updateProfile } from "firebase/auth";
-import { ref, set, get, update } from "firebase/database";
+import { ref, set, get, update, onValue, remove } from "firebase/database";
 import { database } from "../firebase-config";
 
 interface ProfileData {
@@ -18,6 +18,12 @@ interface ProfileData {
   guardianPhone: string;
   address: string;
   role?: string;
+}
+
+interface AdditionalGuardian {
+  id: string;
+  name: string;
+  phone: string;
 }
 
 export default function VictimProfile() {
@@ -37,10 +43,14 @@ export default function VictimProfile() {
   const [loading, setLoading] = useState(true);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [nearestStations, setNearestStations] = useState<any[]>([]);
+  const [additionalGuardians, setAdditionalGuardians] = useState<AdditionalGuardian[]>([]);
+  const [isAddingGuardian, setIsAddingGuardian] = useState(false);
+  const [newGuardian, setNewGuardian] = useState({ name: "", phone: "" });
 
   useEffect(() => {
     fetchProfile();
     getCurrentLocation();
+    fetchAdditionalGuardians();
   }, []);
 
   const fetchProfile = async () => {
@@ -147,6 +157,53 @@ export default function VictimProfile() {
   const getMapsLink = () => {
     if (!location) return "#";
     return `https://www.google.com/maps?q=${location.lat},${location.lng}`;
+  };
+
+  const fetchAdditionalGuardians = async () => {
+    if (!auth.currentUser) return;
+    try {
+      const guardiansRef = ref(database, `users/${auth.currentUser.uid}/additionalGuardians`);
+      const snapshot = await get(guardiansRef);
+      const data = snapshot.val();
+      if (data) {
+        const guardiansList = Object.entries(data).map(([id, guardian]: [string, any]) => ({
+          id,
+          name: guardian.name,
+          phone: guardian.phone
+        }));
+        setAdditionalGuardians(guardiansList);
+      } else {
+        setAdditionalGuardians([]);
+      }
+    } catch (error) {
+      console.error("Error fetching additional guardians:", error);
+    }
+  };
+
+  const handleAddGuardian = async () => {
+    if (!auth.currentUser || !newGuardian.name || !newGuardian.phone) return;
+    try {
+      const guardianId = `guardian_${Date.now()}`;
+      await set(
+        ref(database, `users/${auth.currentUser.uid}/additionalGuardians/${guardianId}`),
+        newGuardian
+      );
+      setNewGuardian({ name: "", phone: "" });
+      setIsAddingGuardian(false);
+      fetchAdditionalGuardians();
+    } catch (error) {
+      console.error("Error adding guardian:", error);
+    }
+  };
+
+  const handleDeleteGuardian = async (id: string) => {
+    if (!auth.currentUser) return;
+    try {
+      await remove(ref(database, `users/${auth.currentUser.uid}/additionalGuardians/${id}`));
+      fetchAdditionalGuardians();
+    } catch (error) {
+      console.error("Error deleting guardian:", error);
+    }
   };
 
   if (loading) {
@@ -265,7 +322,7 @@ export default function VictimProfile() {
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="guardianName">Guardian Name</Label>
+                      <Label htmlFor="guardianName">Primary Guardian Name</Label>
                       <Input
                         id="guardianName"
                         value={formData.guardianName}
@@ -275,7 +332,7 @@ export default function VictimProfile() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="guardianPhone">Guardian Phone</Label>
+                      <Label htmlFor="guardianPhone">Primary Guardian Phone</Label>
                       <Input
                         id="guardianPhone"
                         type="tel"
@@ -284,6 +341,100 @@ export default function VictimProfile() {
                         disabled={!isEditing}
                         placeholder="Guardian phone number"
                       />
+                    </div>
+                  </div>
+
+                  {/* Additional Guardians Section */}
+                  <div className="mt-6">
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="text-md font-medium text-gray-700">Additional Guardians</h4>
+                      {!isAddingGuardian ? (
+                        <Button
+                          onClick={() => setIsAddingGuardian(true)}
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-2 border-blue-300 text-blue-600 hover:bg-blue-50"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Add Guardian
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => setIsAddingGuardian(false)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <X className="w-4 h-4" />
+                          Cancel
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Add Guardian Form */}
+                    {isAddingGuardian && (
+                      <div className="p-4 border border-blue-200 rounded-lg space-y-3 bg-blue-50 mb-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="newGuardianName">Guardian Name</Label>
+                            <Input
+                              id="newGuardianName"
+                              placeholder="Enter guardian name"
+                              value={newGuardian.name}
+                              onChange={(e) => setNewGuardian({ ...newGuardian, name: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="newGuardianPhone">Phone Number</Label>
+                            <Input
+                              id="newGuardianPhone"
+                              type="tel"
+                              placeholder="Enter phone number"
+                              value={newGuardian.phone}
+                              onChange={(e) => setNewGuardian({ ...newGuardian, phone: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <Button onClick={handleAddGuardian} size="sm" className="bg-blue-500 hover:bg-blue-600">
+                          <Save className="w-4 h-4 mr-1" />
+                          Save Guardian
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Additional Guardians List */}
+                    <div className="space-y-2">
+                      {additionalGuardians.length === 0 ? (
+                        <div className="text-center py-4 text-gray-500 bg-gray-50 rounded-lg">
+                          <User className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No additional guardians</p>
+                        </div>
+                      ) : (
+                        additionalGuardians.map((guardian) => (
+                          <div
+                            key={guardian.id}
+                            className="flex items-center justify-between p-3 border rounded-lg bg-gray-50"
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <User className="w-4 h-4 text-blue-500" />
+                                <span className="font-medium">{guardian.name}</span>
+                              </div>
+                              <div className="text-sm text-gray-600 flex items-center gap-1">
+                                <Phone className="w-3 h-3" />
+                                {guardian.phone}
+                              </div>
+                            </div>
+                            <Button
+                              onClick={() => handleDeleteGuardian(guardian.id)}
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>

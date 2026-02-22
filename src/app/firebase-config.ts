@@ -2,15 +2,17 @@ import { initializeApp, getApps } from "firebase/app";
 import { getAuth, browserSessionPersistence, setPersistence } from "firebase/auth";
 import { getDatabase } from "firebase/database";
 
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  databaseURL: `https://${import.meta.env.VITE_FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com/`
+  apiKey: "AIzaSyD4H5GaqjIxMCQwIr1dE9elIM_sMGxNs1I",
+  authDomain: "nirbhaya-aeea4.firebaseapp.com",
+  databaseURL: "https://nirbhaya-aeea4-default-rtdb.firebaseio.com",
+  projectId: "nirbhaya-aeea4",
+  storageBucket: "nirbhaya-aeea4.firebasestorage.app",
+  messagingSenderId: "478442441771",
+  appId: "1:478442441771:web:5ecb1d01dbc5fa005b6e6e"
 };
+
 
 // Initialize Firebase only if it hasn't been initialized already
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];

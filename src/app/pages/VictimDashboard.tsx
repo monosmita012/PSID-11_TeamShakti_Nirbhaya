@@ -8,6 +8,7 @@ import { signOut, getAuth } from "firebase/auth";
 import { ref, push, set, onValue, serverTimestamp, update } from "firebase/database";
 import { database } from "../firebase-config";
 import { WebRTCManager } from "../components/WebRTCManager";
+import { smsService } from "../services/smsService";
 import PanicButton from "../components/PanicButton";
 import EmergencyContacts from "../components/EmergencyContacts";
 import ChatSystem from "../components/ChatSystem";
@@ -242,7 +243,21 @@ export default function VictimDashboard() {
         createdAt: serverTimestamp()
       });
 
-      // Listen for ICE candidates - push to Firebase for police
+      // Send SMS alerts to guardians AUTOMATICALLY from Firebase
+      console.log('📱 Sending SMS alerts to guardians...');
+      const smsResult = await smsService.sendToGuardians(currentLocation);
+      
+      if (smsResult.success) {
+        console.log(`✅ SMS alerts sent to ${smsResult.sent} guardian(s)`);
+        
+        // Show success popup
+        alert(`🚨 SMS SENT SUCCESSFULLY!\n\nEmergency alert with your live location has been sent to ${smsResult.sent} guardian(s).\n\n✅ Guardians will receive:\n• Your name\n• Live location link\n• Current address\n• Time of emergency\n\n📞 Help is on the way!`);
+      } else {
+        console.warn('⚠️ Could not send SMS alerts:', smsResult.details);
+        
+        // Show error popup
+        alert(`⚠️ SMS Alert Issue\n\nCould not send SMS to guardians.\n\nPlease check:\n• Guardian numbers are saved in profile\n• SMS API is configured\n• Internet connection is stable\n\n🚨 Emergency services have been notified!`);
+      }
       webrtcManager.current.onIceCandidate = async (candidate) => {
         const candidatesRef = ref(database, `sessions/${sessionId}/iceCandidates`);
         const candidateData = candidate.toJSON ? candidate.toJSON() : candidate;
