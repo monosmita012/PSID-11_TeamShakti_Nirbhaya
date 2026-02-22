@@ -6,6 +6,7 @@ import AuthPage from "./pages/AuthPage";
 import VictimDashboard from "./pages/VictimDashboard";
 import VictimProfile from "./pages/VictimProfile";
 import PoliceDashboardNew from "./pages/PoliceDashboardNew";
+import PoliceProfile from "./pages/PoliceProfile";
 import AdminDashboard from "./pages/AdminDashboard";
 import SOSPage from "./pages/SOSPage";
 import Login from "./pages/Login";
@@ -48,6 +49,14 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: "/profile",
+    element: (
+      <AuthGuard>
+        <VictimProfile />
+      </AuthGuard>
+    ),
+  },
+  {
     path: "/victim-profile",
     element: (
       <AuthGuard>
@@ -56,10 +65,10 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: "/profile",
+    path: "/police-profile",
     element: (
       <AuthGuard>
-        <VictimProfile />
+        <PoliceProfile />
       </AuthGuard>
     ),
   },

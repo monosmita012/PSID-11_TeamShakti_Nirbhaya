@@ -1,16 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
-import { Shield, Video, MapPin, Clock, Users, LogOut, Phone, AlertTriangle, Bell, User } from "lucide-react";
+import { Shield, Video, MapPin, Clock, Users, LogOut, Phone, AlertTriangle, User, ChevronDown, ChevronUp, Calendar } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import { signOut, getAuth } from "firebase/auth";
 import { ref, onValue, update, serverTimestamp, get } from "firebase/database";
 import { database } from "../firebase-config";
 import { WebRTCManager } from "../components/WebRTCManager";
 import ChatSystem from "../components/ChatSystem";
-import NotificationSystem from "../components/NotificationSystem";
-import { NotificationService } from "../services/NotificationService";
 import MapView from "../components/MapView";
 import {
   AlertDialog,
@@ -22,7 +22,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../components/ui/alert-dialog";
-import SessionRecorder from "../components/SessionRecorder";
 
 interface Session {
   sessionId: string;
@@ -53,32 +52,51 @@ export default function PoliceDashboardNew() {
   const navigate = useNavigate();
   const auth = getAuth();
   const [activeSessions, setActiveSessions] = useState<Session[]>([]);
+  const [deactivatedSessions, setDeactivatedSessions] = useState<Session[]>([]);
+  const [filteredActiveSessions, setFilteredActiveSessions] = useState<Session[]>([]);
+  const [filteredDeactivatedSessions, setFilteredDeactivatedSessions] = useState<Session[]>([]);
   const [policeAlerts, setPoliceAlerts] = useState<PoliceAlert[]>([]);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [activeSosDropdown, setActiveSosDropdown] = useState(true);
+  const [deactivatedSosDropdown, setDeactivatedSosDropdown] = useState(true);
+  const [activeDateFilter, setActiveDateFilter] = useState("");
+  const [deactivatedDateFilter, setDeactivatedDateFilter] = useState("");
+  const [activeTimeFilter, setActiveTimeFilter] = useState("");
+  const [deactivatedTimeFilter, setDeactivatedTimeFilter] = useState("");
+  const [manageDropdown, setManageDropdown] = useState<string | null>(null);
+  const [activeStartTime, setActiveStartTime] = useState("");
+  const [activeEndTime, setActiveEndTime] = useState("");
+  const [deactivatedStartTime, setDeactivatedStartTime] = useState("");
+  const [deactivatedEndTime, setDeactivatedEndTime] = useState("");
   
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const webrtcManager = useRef<WebRTCManager | null>(null);
 
   useEffect(() => {
-    // Initialize notification service
-    const notificationService = NotificationService.getInstance();
-    notificationService.initialize();
-
     // Listen for active sessions
     const sessionsRef = ref(database, 'sessions');
     const unsubscribeSessions = onValue(sessionsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const sessions = Object.values(data).filter(
+        const allSessions = Object.values(data) as Session[];
+        const active = allSessions.filter(
           (session: any) => session && (session.status === 'active' || session.status === 'connecting') && !session.endedAt
-        ) as Session[];
-        setActiveSessions(sessions);
+        );
+        const deactivated = allSessions.filter(
+          (session: any) => session && (session.status === 'ended' || session.endedAt)
+        );
+        setActiveSessions(active);
+        setDeactivatedSessions(deactivated);
+        setFilteredActiveSessions(active);
+        setFilteredDeactivatedSessions(deactivated);
       } else {
         setActiveSessions([]);
+        setDeactivatedSessions([]);
+        setFilteredActiveSessions([]);
+        setFilteredDeactivatedSessions([]);
       }
     });
 
@@ -275,6 +293,79 @@ export default function PoliceDashboardNew() {
     return `${minutes}m ${seconds}s`;
   };
 
+  // Filter sessions by date and time
+  useEffect(() => {
+    let filtered = activeSessions;
+    
+    // Filter by date
+    if (activeDateFilter) {
+      filtered = filtered.filter(session => {
+        const sessionDate = new Date(session.timestamp).toISOString().split('T')[0];
+        return sessionDate === activeDateFilter;
+      });
+    }
+    
+    // Filter by time range
+    if (activeStartTime || activeEndTime) {
+      filtered = filtered.filter(session => {
+        const sessionTime = new Date(session.timestamp);
+        const sessionMinutes = sessionTime.getHours() * 60 + sessionTime.getMinutes();
+        
+        if (activeStartTime) {
+          const [startHours, startMinutes] = activeStartTime.split(':').map(Number);
+          const startTotalMinutes = startHours * 60 + startMinutes;
+          if (sessionMinutes < startTotalMinutes) return false;
+        }
+        
+        if (activeEndTime) {
+          const [endHours, endMinutes] = activeEndTime.split(':').map(Number);
+          const endTotalMinutes = endHours * 60 + endMinutes;
+          if (sessionMinutes > endTotalMinutes) return false;
+        }
+        
+        return true;
+      });
+    }
+    
+    setFilteredActiveSessions(filtered);
+  }, [activeDateFilter, activeStartTime, activeEndTime, activeSessions]);
+
+  useEffect(() => {
+    let filtered = deactivatedSessions;
+    
+    // Filter by date
+    if (deactivatedDateFilter) {
+      filtered = filtered.filter(session => {
+        const sessionDate = new Date(session.timestamp).toISOString().split('T')[0];
+        return sessionDate === deactivatedDateFilter;
+      });
+    }
+    
+    // Filter by time range
+    if (deactivatedStartTime || deactivatedEndTime) {
+      filtered = filtered.filter(session => {
+        const sessionTime = new Date(session.timestamp);
+        const sessionMinutes = sessionTime.getHours() * 60 + sessionTime.getMinutes();
+        
+        if (deactivatedStartTime) {
+          const [startHours, startMinutes] = deactivatedStartTime.split(':').map(Number);
+          const startTotalMinutes = startHours * 60 + startMinutes;
+          if (sessionMinutes < startTotalMinutes) return false;
+        }
+        
+        if (deactivatedEndTime) {
+          const [endHours, endMinutes] = deactivatedEndTime.split(':').map(Number);
+          const endTotalMinutes = endHours * 60 + endMinutes;
+          if (sessionMinutes > endTotalMinutes) return false;
+        }
+        
+        return true;
+      });
+    }
+    
+    setFilteredDeactivatedSessions(filtered);
+  }, [deactivatedDateFilter, deactivatedStartTime, deactivatedEndTime, deactivatedSessions]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
       <div className="max-w-7xl mx-auto">
@@ -290,13 +381,7 @@ export default function PoliceDashboardNew() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <Bell className="w-5 h-5 text-gray-600" />
-              {policeAlerts.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
-              )}
-            </div>
-            <Button onClick={() => navigate('/profile')} variant="outline" className="flex items-center gap-2 border-blue-300 text-blue-600 hover:bg-blue-50">
+            <Button onClick={() => navigate('/police-profile')} variant="outline" className="flex items-center gap-2 border-blue-300 text-blue-600 hover:bg-blue-50">
               <User className="w-4 h-4" />
               Profile
             </Button>
@@ -398,75 +483,373 @@ export default function PoliceDashboardNew() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Active Sessions List */}
           <div className="lg:col-span-1 space-y-6">
+            {/* Active SOS Section */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-red-600" />
-                  Active SOS Sessions
-                </CardTitle>
-                <CardDescription>
-                  Click on a session to connect and view live stream
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {activeSessions.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <AlertTriangle className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>No active SOS sessions</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {activeSessions.map((session) => (
-                      <div
-                        key={session.sessionId}
-                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                          selectedSession?.sessionId === session.sessionId
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                        onClick={() => !isConnected && connectToSession(session)}
+                <div 
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => setActiveSosDropdown(!activeSosDropdown)}
+                >
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                    Active SOS ({activeSessions.length})
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    {(activeDateFilter || activeStartTime || activeEndTime) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveDateFilter("");
+                          setActiveStartTime("");
+                          setActiveEndTime("");
+                        }}
+                        className="text-xs h-6 px-2"
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Badge variant="destructive" className="text-xs">
-                                LIVE
-                              </Badge>
-                              <span className="text-xs text-gray-500">
-                                {getSessionDuration(session.timestamp)}
-                              </span>
-                            </div>
-                            <p className="text-sm font-medium text-gray-900">
-                              Session: {session.sessionId.slice(-8)}
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              Started: {formatTime(session.timestamp)}
-                            </p>
-                            {session.location && (
-                              <div className="flex items-center gap-1 mt-1">
-                                <MapPin className="w-3 h-3 text-gray-400" />
-                                <span className="text-xs text-gray-600">
-                                  {session.location.lat.toFixed(4)}, {session.location.lng.toFixed(4)}
-                                </span>
-                              </div>
-                            )}
-                          </div>
+                        Clear Filter
+                      </Button>
+                    )}
+                    {activeSosDropdown ? 
+                      <ChevronUp className="w-4 h-4 text-gray-600" /> : 
+                      <ChevronDown className="w-4 h-4 text-gray-600" />
+                    }
+                  </div>
+                </div>
+              </CardHeader>
+              {activeSosDropdown && (
+                <CardContent>
+                  {/* Date and Time Filters for Active SOS */}
+                  <div className="mb-4 space-y-3">
+                    <div>
+                      <Label htmlFor="active-date-filter" className="text-sm font-medium">Filter by Date</Label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                        <Input 
+                          id="active-date-filter"
+                          type="date" 
+                          className="pl-10" 
+                          value={activeDateFilter} 
+                          onChange={(e) => setActiveDateFilter(e.target.value)} 
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Filter by Time Range</Label>
+                      <div className="flex gap-2 items-center">
+                        <div className="flex-1">
+                          <Label htmlFor="active-start-time" className="text-xs text-gray-600">Start</Label>
+                          <Input 
+                            id="active-start-time"
+                            type="time" 
+                            value={activeStartTime} 
+                            onChange={(e) => setActiveStartTime(e.target.value)} 
+                          />
+                        </div>
+                        <span className="text-gray-500 mt-4">to</span>
+                        <div className="flex-1">
+                          <Label htmlFor="active-end-time" className="text-xs text-gray-600">End</Label>
+                          <Input 
+                            id="active-end-time"
+                            type="time" 
+                            value={activeEndTime} 
+                            onChange={(e) => setActiveEndTime(e.target.value)} 
+                          />
                         </div>
                       </div>
-                    ))}
+                    </div>
                   </div>
-                )}
-              </CardContent>
+                  {filteredActiveSessions.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <AlertTriangle className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>No active SOS sessions</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {filteredActiveSessions.map((session) => (
+                        <div
+                          key={session.sessionId}
+                          className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                            selectedSession?.sessionId === session.sessionId
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div 
+                              className="flex-1"
+                              onClick={() => !isConnected && connectToSession(session)}
+                            >
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="destructive" className="text-xs">
+                                  LIVE
+                                </Badge>
+                                <span className="text-xs text-gray-500">
+                                  {getSessionDuration(session.timestamp)}
+                                </span>
+                              </div>
+                              <p className="text-sm font-medium text-gray-900">
+                                Session: {session.sessionId.slice(-8)}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                Started: {formatTime(session.timestamp)}
+                              </p>
+                              {session.location && (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <MapPin className="w-3 h-3 text-gray-400" />
+                                  <span className="text-xs text-gray-600">
+                                    {session.location.lat.toFixed(4)}, {session.location.lng.toFixed(4)}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="relative">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setManageDropdown(manageDropdown === session.sessionId ? null : session.sessionId);
+                                }}
+                                className="text-xs"
+                              >
+                                Manage
+                              </Button>
+                              {manageDropdown === session.sessionId && (
+                                <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px]">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full justify-start text-xs h-8 px-3"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setManageDropdown(null);
+                                      // Filter to show only this session in active
+                                      const sessionDate = new Date(session.timestamp).toISOString().split('T')[0];
+                                      const sessionTime = new Date(session.timestamp);
+                                      const hours = sessionTime.getHours();
+                                      const minutes = sessionTime.getMinutes();
+                                      const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                                      setActiveDateFilter(sessionDate);
+                                      setActiveTimeFilter(timeString);
+                                      setDeactivatedDateFilter("");
+                                      setDeactivatedTimeFilter("");
+                                    }}
+                                  >
+                                    Show in Active
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full justify-start text-xs h-8 px-3"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setManageDropdown(null);
+                                      // Move this session to deactivated (simulate ending session)
+                                      const sessionRef = ref(database, `sessions/${session.sessionId}`);
+                                      update(sessionRef, {
+                                        ...session,
+                                        status: 'ended',
+                                        endedAt: serverTimestamp()
+                                      });
+                                    }}
+                                  >
+                                    Mark Inactive
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              )}
             </Card>
 
-            {/* Map View */}
-            {selectedSession && (
-              <MapView 
-                location={selectedSession.location || null}
-                sessionId={selectedSession.sessionId}
-                victimId={selectedSession.victimId}
-              />
-            )}
+            {/* Deactivated SOS Section */}
+            <Card>
+              <CardHeader>
+                <div 
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => setDeactivatedSosDropdown(!deactivatedSosDropdown)}
+                >
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-gray-600" />
+                    Deactivated SOS ({deactivatedSessions.length})
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    {(deactivatedDateFilter || deactivatedStartTime || deactivatedEndTime) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeactivatedDateFilter("");
+                          setDeactivatedStartTime("");
+                          setDeactivatedEndTime("");
+                        }}
+                        className="text-xs h-6 px-2"
+                      >
+                        Clear Filter
+                      </Button>
+                    )}
+                    {deactivatedSosDropdown ? 
+                      <ChevronUp className="w-4 h-4 text-gray-600" /> : 
+                      <ChevronDown className="w-4 h-4 text-gray-600" />
+                    }
+                  </div>
+                </div>
+              </CardHeader>
+              {deactivatedSosDropdown && (
+                <CardContent>
+                  {/* Date and Time Filters for Deactivated SOS */}
+                  <div className="mb-4 space-y-3">
+                    <div>
+                      <Label htmlFor="deactivated-date-filter" className="text-sm font-medium">Filter by Date</Label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                        <Input 
+                          id="deactivated-date-filter"
+                          type="date" 
+                          className="pl-10" 
+                          value={deactivatedDateFilter} 
+                          onChange={(e) => setDeactivatedDateFilter(e.target.value)} 
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Filter by Time Range</Label>
+                      <div className="flex gap-2 items-center">
+                        <div className="flex-1">
+                          <Label htmlFor="deactivated-start-time" className="text-xs text-gray-600">Start</Label>
+                          <Input 
+                            id="deactivated-start-time"
+                            type="time" 
+                            value={deactivatedStartTime} 
+                            onChange={(e) => setDeactivatedStartTime(e.target.value)} 
+                          />
+                        </div>
+                        <span className="text-gray-500 mt-4">to</span>
+                        <div className="flex-1">
+                          <Label htmlFor="deactivated-end-time" className="text-xs text-gray-600">End</Label>
+                          <Input 
+                            id="deactivated-end-time"
+                            type="time" 
+                            value={deactivatedEndTime} 
+                            onChange={(e) => setDeactivatedEndTime(e.target.value)} 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {filteredDeactivatedSessions.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <AlertTriangle className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>No deactivated SOS sessions</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {filteredDeactivatedSessions.map((session) => (
+                        <div
+                          key={session.sessionId}
+                          className="p-3 border rounded-lg border-gray-200 bg-gray-50"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="secondary" className="text-xs">
+                                  ENDED
+                                </Badge>
+                                <span className="text-xs text-gray-500">
+                                  Duration: {session.endedAt ? getSessionDuration(session.timestamp) : 'Unknown'}
+                                </span>
+                              </div>
+                              <p className="text-sm font-medium text-gray-900">
+                                Session: {session.sessionId.slice(-8)}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                Started: {formatTime(session.timestamp)}
+                              </p>
+                              {session.endedAt && (
+                                <p className="text-xs text-gray-600">
+                                  Ended: {formatTime(session.endedAt)}
+                                </p>
+                              )}
+                              {session.location && (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <MapPin className="w-3 h-3 text-gray-400" />
+                                  <span className="text-xs text-gray-600">
+                                    {session.location.lat.toFixed(4)}, {session.location.lng.toFixed(4)}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="relative">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setManageDropdown(manageDropdown === session.sessionId ? null : session.sessionId);
+                                }}
+                                className="text-xs"
+                              >
+                                Manage
+                              </Button>
+                              {manageDropdown === session.sessionId && (
+                                <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px]">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full justify-start text-xs h-8 px-3"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setManageDropdown(null);
+                                      // Filter to show only this session in deactivated
+                                      const sessionDate = new Date(session.timestamp).toISOString().split('T')[0];
+                                      const sessionTime = new Date(session.timestamp);
+                                      const hours = sessionTime.getHours();
+                                      const minutes = sessionTime.getMinutes();
+                                      const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                                      setDeactivatedDateFilter(sessionDate);
+                                      setDeactivatedTimeFilter(timeString);
+                                      setActiveDateFilter("");
+                                      setActiveTimeFilter("");
+                                    }}
+                                  >
+                                    Show in Inactive
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full justify-start text-xs h-8 px-3"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setManageDropdown(null);
+                                      // Reactivate this session
+                                      const sessionRef = ref(database, `sessions/${session.sessionId}`);
+                                      update(sessionRef, {
+                                        ...session,
+                                        status: 'active',
+                                        endedAt: null
+                                      });
+                                    }}
+                                  >
+                                    Mark Active
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              )}
+            </Card>
           </div>
 
           {/* Video Stream and Chat */}
@@ -568,12 +951,12 @@ export default function PoliceDashboardNew() {
               </CardContent>
             </Card>
 
-            {/* Session Recorder */}
+            {/* Victim Location Map */}
             {selectedSession && (
-              <SessionRecorder 
+              <MapView 
+                location={selectedSession.location || null}
                 sessionId={selectedSession.sessionId}
-                isRecording={isRecording}
-                onRecordingChange={setIsRecording}
+                victimId={selectedSession.victimId}
               />
             )}
 
