@@ -8,6 +8,7 @@ import { signOut, getAuth } from "firebase/auth";
 import { ref, onValue, update, serverTimestamp, get } from "firebase/database";
 import { database } from "../firebase-config";
 import { WebRTCManager } from "../components/WebRTCManager";
+import { getIceServers } from "../utils/iceServers";
 import ChatSystem from "../components/ChatSystem";
 import NotificationSystem from "../components/NotificationSystem";
 import { NotificationService } from "../services/NotificationService";
@@ -114,8 +115,9 @@ export default function PoliceDashboardNew() {
         return;
       }
 
-      // Initialize WebRTC manager
-      webrtcManager.current = new WebRTCManager();
+      // Initialize WebRTC with TURN servers for cross-network (different devices) connectivity
+      const iceServers = await getIceServers();
+      webrtcManager.current = new WebRTCManager({ iceServers });
       
       webrtcManager.current.onRemoteStream = (stream) => {
         console.log('📹 Received remote stream from victim');

@@ -8,6 +8,7 @@ import { signOut, getAuth } from "firebase/auth";
 import { ref, push, set, onValue, serverTimestamp, update } from "firebase/database";
 import { database } from "../firebase-config";
 import { WebRTCManager } from "../components/WebRTCManager";
+import { getIceServers } from "../utils/iceServers";
 import PanicButton from "../components/PanicButton";
 import EmergencyContacts from "../components/EmergencyContacts";
 import ChatSystem from "../components/ChatSystem";
@@ -173,8 +174,9 @@ export default function VictimDashboard() {
         setAddress(currentLocation.address);
       }
 
-      // Initialize WebRTC
-      webrtcManager.current = new WebRTCManager();
+      // Initialize WebRTC with TURN servers for cross-network (different devices) connectivity
+      const iceServers = await getIceServers();
+      webrtcManager.current = new WebRTCManager({ iceServers });
       
       // Get user media with enhanced constraints
       const stream = await navigator.mediaDevices.getUserMedia({ 
