@@ -12,6 +12,7 @@ import {
   Phone,
   Radio,
   Search,
+  Trash2,
   UserCheck,
   Video,
 } from "lucide-react";
@@ -244,6 +245,15 @@ export default function PoliceDashboard() {
     setHistoryIncidents((prev) => prev.map((h) => (h.id === id ? { ...h, status } : h)));
   };
 
+  const handleDeleteAlert = (id: string) => {
+    if (confirm('Are you sure you want to delete this alert? This action cannot be undone.')) {
+      setSosAlerts((prev) => prev.filter((alert) => alert.id !== id));
+      if (selectedSOS === id) {
+        setSelectedSOS(null);
+      }
+    }
+  };
+
   const getStatusColor = (status: SOSAlert["status"]) => {
     switch (status) {
       case "Active":
@@ -342,7 +352,7 @@ export default function PoliceDashboard() {
 
       <main className="container mx-auto px-4 py-8 space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card onClick={() => setStatusFilter("Active")} className="cursor-pointer">
+          <Card onClick={() => setStatusFilter("Active")} className="cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-red-600" />
@@ -355,7 +365,7 @@ export default function PoliceDashboard() {
             </CardContent>
           </Card>
 
-          <Card onClick={() => setStatusFilter("Dispatched")} className="cursor-pointer">
+          <Card onClick={() => setStatusFilter("Dispatched")} className="cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Radio className="w-4 h-4 text-yellow-600" />
@@ -368,7 +378,7 @@ export default function PoliceDashboard() {
             </CardContent>
           </Card>
 
-          <Card onClick={() => setStatusFilter("Resolved")} className="cursor-pointer">
+          <Card onClick={() => setStatusFilter("Resolved")} className="cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-green-600" />
@@ -390,6 +400,26 @@ export default function PoliceDashboard() {
             </Button>
           </div>
         )}
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <Badge variant="outline">Total Alerts: {derivedAlerts.length}</Badge>
+          </div>
+          <Button 
+            size="sm" 
+            variant="destructive" 
+            onClick={() => {
+              if (confirm('Are you sure you want to remove all alerts? This action cannot be undone.')) {
+                setSosAlerts([]);
+                setSelectedSOS(null);
+                setStatusFilter(null);
+              }
+            }}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            Remove All Alerts
+          </Button>
+        </div>
 
         <Tabs defaultValue="sos" className="space-y-6">
           <TabsList className="w-full grid grid-cols-3 h-14">
@@ -473,6 +503,15 @@ export default function PoliceDashboard() {
                               </Button>
                               <Button size="sm" variant={selectedSOS === alert.id ? "default" : "outline"} onClick={() => setSelectedSOS(selectedSOS === alert.id ? null : alert.id)}>
                                 {selectedSOS === alert.id ? "Hide" : "Manage"}
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="destructive" 
+                                onClick={() => handleDeleteAlert(alert.id)}
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" />
+                                Delete
                               </Button>
                             </div>
                           </TableCell>

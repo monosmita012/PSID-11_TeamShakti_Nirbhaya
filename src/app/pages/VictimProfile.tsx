@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { User, Phone, Edit2, Save, X, ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { User, Phone, MapPin, Edit2, Save, X, ArrowLeft, Plus, Trash2, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { getAuth, updateProfile } from "firebase/auth";
 import { ref, set, get, update, onValue, remove } from "firebase/database";
 import { database } from "../firebase-config";
@@ -41,6 +42,12 @@ export default function VictimProfile() {
     address: ""
   });
   const [loading, setLoading] = useState(true);
+<<<<<<< HEAD
+=======
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [nearestStations, setNearestStations] = useState<any[]>([]);
+  const [selectedStation, setSelectedStation] = useState<string>("");
+>>>>>>> origin
   const [additionalGuardians, setAdditionalGuardians] = useState<AdditionalGuardian[]>([]);
   const [isAddingGuardian, setIsAddingGuardian] = useState(false);
   const [newGuardian, setNewGuardian] = useState({ name: "", phone: "" });
@@ -110,6 +117,21 @@ export default function VictimProfile() {
     }
   };
 
+<<<<<<< HEAD
+=======
+  const findNearestPoliceStations = async (lat: number, lng: number) => {
+    // Mock police stations - in production, use Google Places API
+    const mockStations = [
+      { id: "station_1", name: "Central Police Station", address: "123 Main St", phone: "911", distance: 0.5 },
+      { id: "station_2", name: "North District Police", address: "456 Oak Ave", phone: "911", distance: 1.2 },
+      { id: "station_3", name: "East Side Police", address: "789 Pine Rd", phone: "911", distance: 2.1 },
+      { id: "station_4", name: "West End Police", address: "321 Elm St", phone: "911", distance: 3.5 },
+      { id: "station_5", name: "South Gate Police", address: "654 Maple Dr", phone: "911", distance: 4.8 }
+    ];
+    setNearestStations(mockStations);
+  };
+
+>>>>>>> origin
   const handleSave = async () => {
     if (!auth.currentUser) return;
     try {
@@ -362,6 +384,7 @@ export default function VictimProfile() {
                   </div>
                 )}
 
+<<<<<<< HEAD
                 {/* Additional Guardians List */}
                 <div className="space-y-2">
                   {additionalGuardians.length === 0 ? (
@@ -405,6 +428,125 @@ export default function VictimProfile() {
                       </div>
                     ))
                   )}
+=======
+            {/* Nearest Police Stations */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Phone className="w-5 h-5" />
+                  Nearest Police Stations
+                </CardTitle>
+                <CardDescription>
+                  Select your nearest police station for emergency services
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Station Dropdown */}
+                  <div className="space-y-2">
+                    <Label htmlFor="station-select">Select Police Station</Label>
+                    <Select value={selectedStation} onValueChange={setSelectedStation}>
+                      <SelectTrigger id="station-select">
+                        <SelectValue placeholder="Choose your nearest police station" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {nearestStations.map((station) => (
+                          <SelectItem key={station.id} value={station.id}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{station.name}</span>
+                              <span className="text-xs text-gray-500">
+                                {station.address} • {station.distance} km away
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Selected Station Details */}
+                  {selectedStation && (
+                    <div className="p-4 border border-blue-200 rounded-lg bg-blue-50">
+                      {(() => {
+                        const station = nearestStations.find(s => s.id === selectedStation);
+                        if (!station) return null;
+                        return (
+                          <div className="space-y-3">
+                            <div>
+                              <h4 className="font-medium text-blue-900">{station.name}</h4>
+                              <p className="text-sm text-blue-700">{station.address}</p>
+                              <p className="text-xs text-blue-600">Distance: {station.distance} km</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => getDirections(station)}
+                                variant="outline"
+                                className="flex-1"
+                              >
+                                <MapPin className="w-4 h-4 mr-1" />
+                                Directions
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => callPolice(station.phone)}
+                                className="flex-1"
+                              >
+                                <Phone className="w-4 h-4 mr-1" />
+                                Call
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  {/* All Stations List */}
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium text-gray-700">All Available Stations</h4>
+                    {nearestStations.map((station) => (
+                      <div 
+                        key={station.id} 
+                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                          selectedStation === station.id 
+                            ? 'border-blue-500 bg-blue-50' 
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        onClick={() => setSelectedStation(station.id)}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h5 className="font-medium">{station.name}</h5>
+                            <p className="text-sm text-gray-600">{station.address}</p>
+                            <p className="text-xs text-gray-500">Distance: {station.distance} km</p>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                getDirections(station);
+                              }}
+                              variant="outline"
+                            >
+                              <MapPin className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                callPolice(station.phone);
+                              }}
+                            >
+                              <Phone className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+>>>>>>> origin
                 </div>
               </CardContent>
             </Card>
