@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { signOut, getAuth } from "firebase/auth";
-import { ref, onValue, update, serverTimestamp } from "firebase/database";
+import { ref, onValue, update, serverTimestamp, get } from "firebase/database";
 import { database } from "../firebase-config";
 import { WebRTCManager } from "../components/WebRTCManager";
 import ChatSystem from "../components/ChatSystem";
@@ -103,6 +103,17 @@ export default function PoliceDashboardNew() {
       setIsConnecting(true);
       setSelectedSession(session);
 
+      // Always fetch full session from Firebase (alerts don't include offer/iceCandidates)
+      const sessionRef = ref(database, `sessions/${session.sessionId}`);
+      const snapshot = await get(sessionRef);
+      const fullSession = snapshot.val();
+      
+      if (!fullSession?.offer) {
+        setIsConnecting(false);
+        alert('Session not ready yet. The victim may still be connecting. Please try again.');
+        return;
+      }
+
       // Initialize WebRTC manager
       webrtcManager.current = new WebRTCManager();
       
@@ -113,12 +124,9 @@ export default function PoliceDashboardNew() {
         }
         setIsConnected(true);
         setIsConnecting(false);
-        
-        // Show notification when stream is received
         console.log('✅ Live video stream connected successfully');
       };
 
-      // Listen for connection state changes
       webrtcManager.current.onConnectionStateChange = (state: RTCPeerConnectionState) => {
         console.log('WebRTC Connection State:', state);
         if (state === 'connected') {
@@ -130,44 +138,59 @@ export default function PoliceDashboardNew() {
         }
       };
 
-      // Create answer to victim's offer
-      if (session.offer) {
-        console.log('📞 Creating answer to victim offer');
-        const answer = await webrtcManager.current.createAnswer(session.offer);
-        
-        // Save answer to Firebase
-        const sessionRef = ref(database, `sessions/${session.sessionId}`);
-        await update(sessionRef, {
-          ...session,
-          answer: answer,
-          policeConnected: serverTimestamp()
-        });
-
-        // Handle ICE candidates
-        if (session.iceCandidates) {
-          console.log('🧊 Adding ICE candidates:', session.iceCandidates.length);
-          for (const candidate of session.iceCandidates) {
-            await webrtcManager.current.addIceCandidate(candidate);
-          }
+      // Send police ICE candidates to victim
+      const policeCandidatesRef = ref(database, `sessions/${session.sessionId}/policeIceCandidates`);
+      webrtcManager.current.onIceCandidate = async (candidate: RTCIceCandidate) => {
+        try {
+          const { push } = await import("firebase/database");
+          await push(policeCandidatesRef, candidate.toJSON ? candidate.toJSON() : candidate);
+        } catch (err) {
+          console.error('Failed to send ICE candidate:', err);
         }
+      };
 
-        // Listen for new ICE candidates
-        const candidatesRef = ref(database, `sessions/${session.sessionId}/iceCandidates`);
-        onValue(candidatesRef, (snapshot) => {
-          const candidates = snapshot.val();
-          if (candidates) {
-            Object.values(candidates).forEach(async (candidate: any) => {
-              if (webrtcManager.current) {
-                await webrtcManager.current.addIceCandidate(candidate);
-              }
-            });
-          }
-        });
+      console.log('📞 Creating answer to victim offer');
+      const answer = await webrtcManager.current.createAnswer(fullSession.offer);
+      
+      await update(sessionRef, {
+        answer: answer,
+        policeConnected: serverTimestamp()
+      });
+
+      // Add existing ICE candidates from victim and listen for new ones
+      const addedCandidateKeys = new Set<string>();
+      const addCandidate = async (key: string, candidate: any) => {
+        if (!candidate || !(candidate.candidate || candidate.sdpMid !== undefined)) return;
+        if (addedCandidateKeys.has(key)) return;
+        try {
+          await webrtcManager.current!.addIceCandidate(new RTCIceCandidate(candidate));
+          addedCandidateKeys.add(key);
+        } catch (err) {
+          console.warn('Failed to add ICE candidate:', err);
+        }
+      };
+
+      const iceCandidates = fullSession.iceCandidates || {};
+      const existingCount = Object.keys(iceCandidates).length;
+      if (existingCount > 0) {
+        console.log('🧊 Adding', existingCount, 'ICE candidates from victim');
+        for (const [key, candidate] of Object.entries(iceCandidates) as [string, RTCIceCandidateInit][]) {
+          await addCandidate(key, candidate);
+        }
       }
+
+      const candidatesRef = ref(database, `sessions/${session.sessionId}/iceCandidates`);
+      onValue(candidatesRef, (snapshot) => {
+        const candidates = snapshot.val();
+        if (!candidates || !webrtcManager.current) return;
+        Object.entries(candidates).forEach(([key, candidate]: [string, any]) => {
+          addCandidate(key, candidate);
+        });
+      });
     } catch (error) {
       console.error('Error connecting to session:', error);
       setIsConnecting(false);
-      alert('Failed to connect to session');
+      alert('Failed to connect to session. Please check your connection and try again.');
     }
   };
 

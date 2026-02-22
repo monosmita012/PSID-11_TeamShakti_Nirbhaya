@@ -22,6 +22,6 @@ export default defineConfig({
 
   server: {
     port: 5173,
-    strictPort: true, // fail instead of silently bumping to 5174
+    strictPort: false, // use next available port if 5173 is in use
   },
 })

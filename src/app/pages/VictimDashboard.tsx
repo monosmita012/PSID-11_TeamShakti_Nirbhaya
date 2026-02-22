@@ -42,6 +42,7 @@ export default function VictimDashboard() {
   
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const webrtcManager = useRef<WebRTCManager | null>(null);
+  const sessionUnsubscribes = useRef<(() => void)[]>([]);
 
   // Get current location and address
   const getCurrentLocation = () => {
@@ -232,11 +233,45 @@ export default function VictimDashboard() {
         createdAt: serverTimestamp()
       });
 
-      // Listen for ICE candidates
+      // Listen for ICE candidates - push to Firebase for police
       webrtcManager.current.onIceCandidate = async (candidate) => {
         const candidatesRef = ref(database, `sessions/${sessionId}/iceCandidates`);
-        await push(candidatesRef, candidate);
+        const candidateData = candidate.toJSON ? candidate.toJSON() : candidate;
+        await push(candidatesRef, candidateData);
       };
+
+      // Listen for police answer (only process once)
+      let answerHandled = false;
+      const sessionRef = ref(database, `sessions/${sessionId}`);
+      const unsubAnswer = onValue(sessionRef, async (snapshot) => {
+        const data = snapshot.val();
+        if (!data?.answer || !webrtcManager.current || answerHandled) return;
+        try {
+          await webrtcManager.current.handleAnswer(data.answer);
+          answerHandled = true;
+          console.log('✅ Received police answer - connection established');
+        } catch (err) {
+          console.warn('Failed to handle police answer:', err);
+        }
+      });
+
+      const policeCandidatesRef = ref(database, `sessions/${sessionId}/policeIceCandidates`);
+      const addedCandidates = new Set<string>();
+      const unsubPoliceCandidates = onValue(policeCandidatesRef, async (snapshot) => {
+        const candidates = snapshot.val();
+        if (!candidates || !webrtcManager.current) return;
+        for (const [key, candidate] of Object.entries(candidates) as [string, any][]) {
+          if (addedCandidates.has(key) || !candidate || !(candidate.candidate || candidate.sdpMid !== undefined)) continue;
+          try {
+            await webrtcManager.current.addIceCandidate(new RTCIceCandidate(candidate));
+            addedCandidates.add(key);
+          } catch (err) {
+            console.warn('Failed to add police ICE candidate:', err);
+          }
+        }
+      });
+
+      sessionUnsubscribes.current = [unsubAnswer, unsubPoliceCandidates];
 
       setCurrentSession({
         sessionId,
@@ -261,6 +296,10 @@ export default function VictimDashboard() {
 
   const stopSOS = async () => {
     try {
+      // Unsubscribe from Firebase listeners
+      sessionUnsubscribes.current.forEach((unsub) => unsub());
+      sessionUnsubscribes.current = [];
+      
       // Stop location tracking
       stopLocationTracking();
       

@@ -6,7 +6,10 @@ export class WebRTCManager {
   constructor() {
     this.peerConnection = new RTCPeerConnection({
       iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' }
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun.stunprotocol.org:3478' }
       ]
     });
 
@@ -88,8 +91,9 @@ export class WebRTCManager {
     await this.peerConnection.setRemoteDescription(answer);
   }
 
-  async addIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
-    await this.peerConnection.addIceCandidate(candidate);
+  async addIceCandidate(candidate: RTCIceCandidateInit | RTCIceCandidate): Promise<void> {
+    const c = candidate instanceof RTCIceCandidate ? candidate : new RTCIceCandidate(candidate);
+    await this.peerConnection.addIceCandidate(c);
   }
 
   toggleMute(): void {

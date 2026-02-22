@@ -28,9 +28,12 @@ export default function MapView({ location, sessionId, victimId }: MapViewProps)
       // Generate static map image URL (using a free service)
       const staticUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${location.lat},${location.lng}&zoom=15&size=600x300&markers=color:red%7C${location.lat},${location.lng}&key=YOUR_API_KEY`;
       
-      // Fallback to OpenStreetMap if no API key
-      const osmStaticUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${location.lat},${location.lng}&zoom=15&size=600x300&markers=${location.lat},${location.lng},red`;
-      setStaticMapUrl(osmStaticUrl);
+      // Use OpenStreetMap tile (staticmap.openstreetmap.de often has DNS issues)
+      const z = 14;
+      const x = Math.floor(((location.lng + 180) / 360) * Math.pow(2, z));
+      const y = Math.floor(((1 - Math.log(Math.tan((location.lat * Math.PI) / 180) + 1 / Math.cos((location.lat * Math.PI) / 180)) / Math.PI) / 2) * Math.pow(2, z));
+      const tileUrl = `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+      setStaticMapUrl(tileUrl);
     }
   }, [location]);
 
