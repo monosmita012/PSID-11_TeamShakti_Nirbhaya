@@ -62,18 +62,14 @@ export default function SOSPage() {
       const userSnapshot = await get(userRef);
       const userData = userSnapshot.val();
 
-      // Start local stream
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: true 
-      });
+      // Initialize WebRTC
+      webrtcManager.current = new WebRTCManager();
+      const stream = await webrtcManager.current.startLocalStream();
       
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
-
-      // Initialize WebRTC
-      webrtcManager.current = new WebRTCManager();
+      
       const offer = await webrtcManager.current.createOffer();
 
       // Create case in Firebase
@@ -138,23 +134,15 @@ export default function SOSPage() {
   };
 
   const toggleMute = () => {
-    if (webrtcManager.current && localVideoRef.current) {
-      const stream = localVideoRef.current.srcObject as MediaStream;
-      const audioTracks = stream.getAudioTracks();
-      audioTracks.forEach(track => {
-        track.enabled = !isMuted;
-      });
+    if (webrtcManager.current) {
+      webrtcManager.current.toggleMute();
       setIsMuted(!isMuted);
     }
   };
 
   const toggleVideo = () => {
-    if (webrtcManager.current && localVideoRef.current) {
-      const stream = localVideoRef.current.srcObject as MediaStream;
-      const videoTracks = stream.getVideoTracks();
-      videoTracks.forEach(track => {
-        track.enabled = !isVideoOff;
-      });
+    if (webrtcManager.current) {
+      webrtcManager.current.toggleVideo();
       setIsVideoOff(!isVideoOff);
     }
   };

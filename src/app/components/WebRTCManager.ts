@@ -70,6 +70,24 @@ export class WebRTCManager {
     await this.peerConnection.addIceCandidate(candidate);
   }
 
+  toggleMute(): void {
+    if (this.localStream) {
+      const audioTracks = this.localStream.getAudioTracks();
+      audioTracks.forEach(track => {
+        track.enabled = !track.enabled;
+      });
+    }
+  }
+
+  toggleVideo(): void {
+    if (this.localStream) {
+      const videoTracks = this.localStream.getVideoTracks();
+      videoTracks.forEach(track => {
+        track.enabled = !track.enabled;
+      });
+    }
+  }
+
   stopLocalStream(): void {
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => track.stop());
