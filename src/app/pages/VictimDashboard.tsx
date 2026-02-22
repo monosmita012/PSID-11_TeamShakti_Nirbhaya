@@ -5,12 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { signOut, getAuth } from "firebase/auth";
-import { ref, push, set, onValue, serverTimestamp, update } from "firebase/database";
+import { ref, push, set, onValue, serverTimestamp, update, get } from "firebase/database";
 import { database } from "../firebase-config";
 import { WebRTCManager } from "../components/WebRTCManager";
 import { smsService } from "../services/smsService";
-import PanicButton from "../components/PanicButton";
-import EmergencyContacts from "../components/EmergencyContacts";
+import { cloudinaryVideoService } from "../services/cloudinaryVideoService";
+import { policeStationService, PoliceStation } from "../services/policeStationService";
+import SOSButton from "../components/PanicButton";
 import ChatSystem from "../components/ChatSystem";
 import {
   AlertDialog,
@@ -49,6 +50,11 @@ export default function VictimDashboard() {
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [currentSession, setCurrentSession] = useState<CurrentSession | null>(null);
   const [locationWatchId, setLocationWatchId] = useState<number | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [nearestStations, setNearestStations] = useState<PoliceStation[]>([]);
+  const [guardianPhone, setGuardianPhone] = useState<string>("");
   
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const webrtcManager = useRef<WebRTCManager | null>(null);
@@ -167,12 +173,45 @@ export default function VictimDashboard() {
       if (loc.address) {
         setAddress(loc.address);
       }
+      
+      // Find nearest police stations
+      policeStationService.findNearestStations(loc.lat, loc.lng).then((stations) => {
+        setNearestStations(stations);
+      }).catch(console.error);
     }).catch(console.error);
+
+    // Fetch guardian phone
+    fetchGuardianPhone();
 
     return () => {
       stopLocationTracking();
     };
   }, []);
+
+  // Fetch guardian phone from Firebase
+  const fetchGuardianPhone = async () => {
+    if (!auth.currentUser) return;
+    try {
+      const userRef = ref(database, `users/${auth.currentUser.uid}`);
+      const snapshot = await get(userRef);
+      const data = snapshot.val();
+      
+      if (data?.guardianPhone) {
+        setGuardianPhone(data.guardianPhone);
+      }
+    } catch (error) {
+      console.error("Error fetching guardian phone:", error);
+    }
+  };
+
+  // Call guardian directly
+  const callGuardian = () => {
+    if (guardianPhone) {
+      window.open(`tel:${guardianPhone}`, '_self');
+    } else {
+      alert("No guardian phone number found. Please add a guardian in your profile.");
+    }
+  };
 
   const startSOS = async () => {
     try {
@@ -254,10 +293,20 @@ export default function VictimDashboard() {
         alert(`🚨 SMS SENT SUCCESSFULLY!\n\nEmergency alert with your live location has been sent to ${smsResult.sent} guardian(s).\n\n✅ Guardians will receive:\n• Your name\n• Live location link\n• Current address\n• Time of emergency\n\n📞 Help is on the way!`);
       } else {
         console.warn('⚠️ Could not send SMS alerts:', smsResult.details);
-        
-        // Show error popup
-        alert(`⚠️ SMS Alert Issue\n\nCould not send SMS to guardians.\n\nPlease check:\n• Guardian numbers are saved in profile\n• SMS API is configured\n• Internet connection is stable\n\n🚨 Emergency services have been notified!`);
+        // SMS failure popup removed - continue with emergency flow
       }
+
+      // Start video recording for evidence
+      console.log('🎥 Starting video recording for evidence...');
+      setIsRecording(true);
+      try {
+        await cloudinaryVideoService.startRecording();
+        console.log('✅ Video recording started');
+      } catch (error) {
+        console.error('❌ Failed to start video recording:', error);
+        setIsRecording(false);
+      }
+
       webrtcManager.current.onIceCandidate = async (candidate) => {
         const candidatesRef = ref(database, `sessions/${sessionId}/iceCandidates`);
         const candidateData = candidate.toJSON ? candidate.toJSON() : candidate;
@@ -345,6 +394,37 @@ export default function VictimDashboard() {
           endedAt: Date.now()
         });
 
+        // Stop video recording and upload to Cloudinary
+        if (isRecording) {
+          console.log('🛑 Stopping video recording and uploading...');
+          setIsRecording(false);
+          setUploadingVideo(true);
+          
+          try {
+            const videoUrl = await cloudinaryVideoService.stopRecording();
+            setRecordedVideoUrl(videoUrl);
+            
+            // Get video blob and upload to Cloudinary
+            const videoBlob = await cloudinaryVideoService.getVideoBlob(videoUrl);
+            const cloudinaryUrl = await cloudinaryVideoService.uploadToCloudinary(videoBlob, currentSession.sessionId);
+            
+            // Update session with video URL
+            await update(sessionRef, {
+              videoRecording: cloudinaryUrl,
+              videoUploadedAt: Date.now()
+            });
+            
+            console.log('✅ Video uploaded to Cloudinary:', cloudinaryUrl);
+            alert('🎥 Video evidence uploaded successfully!');
+            
+          } catch (error) {
+            console.error('❌ Failed to upload video:', error);
+            alert('⚠️ Video upload failed, but emergency services have been notified.');
+          } finally {
+            setUploadingVideo(false);
+          }
+        }
+
         // Remove from police alerts
         const alertsRef = ref(database, 'policeAlerts');
         const snapshot = await new Promise((resolve) => {
@@ -413,7 +493,7 @@ export default function VictimDashboard() {
               </div>
               <div>
                 <h1 className="text-2xl lg:text-3xl xl:text-4xl font-bold bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
-                  Dashboard
+                  Nirbhaya App
                 </h1>
                 <p className="text-sm lg:text-base text-gray-600">Women Safety System</p>
               </div>
@@ -464,6 +544,73 @@ export default function VictimDashboard() {
           </Card>
         )}
 
+        {/* Nearest Police Station */}
+        {nearestStations.length > 0 && (
+          <Card className="mt-6 shadow-sm border-0 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-3 text-lg text-blue-600">
+                <Shield className="w-5 h-5" />
+                Nearest Police Station
+              </CardTitle>
+              <CardDescription className="text-sm">
+                Quick access to emergency services
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {nearestStations.slice(0, 1).map((station, index) => (
+                <div key={index} className="p-4 border rounded-lg bg-blue-50 border-blue-200">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-blue-900 text-lg">{station.name}</h4>
+                      <p className="text-sm text-gray-600 mt-1">{station.address}</p>
+                    </div>
+                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
+                      {station.distance.toFixed(1)} km
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 text-sm text-green-600">
+                      <Phone className="w-4 h-4" />
+                      <span className="font-medium">{station.phone}</span>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        if (location) {
+                          const directionsUrl = policeStationService.getDirections(station, location.lat, location.lng);
+                          window.open(directionsUrl, '_blank');
+                        }
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2 text-blue-600 border-blue-300 hover:bg-blue-50"
+                    >
+                      <MapPin className="w-4 h-4" />
+                      Get Directions
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {nearestStations.length > 1 && (
+                <div className="text-center">
+                  <Button
+                    onClick={() => {
+                      const element = document.querySelector('.police-stations-full-list');
+                      if (element) {
+                        element.scrollIntoView({ behavior: 'smooth' });
+                      }
+                    }}
+                    variant="ghost"
+                    size="sm"
+                    className="text-blue-600 hover:text-blue-700"
+                  >
+                    View all {nearestStations.length} stations →
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Main Content - Desktop Optimized Layout */}
         <div className="mt-8">
           {/* Video Stream and Chat Layout */}
@@ -478,6 +625,18 @@ export default function VictimDashboard() {
                   </CardTitle>
                   <CardDescription className="text-base">
                     {isStreaming ? "Your live video is being streamed to emergency services" : "Click SOS to start streaming"}
+                    {isRecording && (
+                      <div className="mt-2 flex items-center gap-2 text-red-600">
+                        <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse"></div>
+                        <span className="text-sm font-medium">🎥 Recording video evidence...</span>
+                      </div>
+                    )}
+                    {uploadingVideo && (
+                      <div className="mt-2 flex items-center gap-2 text-blue-600">
+                        <div className="w-3 h-3 bg-blue-600 rounded-full animate-spin"></div>
+                        <span className="text-sm font-medium">☁️ Uploading video to cloud...</span>
+                      </div>
+                    )}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -539,12 +698,40 @@ export default function VictimDashboard() {
 
             {/* Emergency Section - Sidebar on desktop */}
             <div className="space-y-6">
-              {/* Panic Button */}
-              <PanicButton 
+              {/* SOS Button */}
+              <SOSButton 
                 onActivate={startSOS}
                 isActivated={isStreaming}
                 disabled={isStreaming}
               />
+
+              {/* Call Guardian Button */}
+              <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-3 text-lg text-green-600">
+                    <Phone className="w-5 h-5" />
+                    Call Guardian
+                  </CardTitle>
+                  <CardDescription>
+                    Direct call to your primary guardian
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={callGuardian}
+                    className="w-full flex items-center gap-2 h-12 bg-green-600 hover:bg-green-700 text-white"
+                    size="lg"
+                  >
+                    <Phone className="w-5 h-5" />
+                    {guardianPhone ? `Call ${guardianPhone}` : 'Call Guardian'}
+                  </Button>
+                  {!guardianPhone && (
+                    <p className="text-xs text-gray-500 mt-2 text-center">
+                      Add guardian phone number in profile to enable direct calling
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* Session Info */}
               {currentSession && (
@@ -588,12 +775,62 @@ export default function VictimDashboard() {
                   </CardContent>
                 </Card>
               )}
-
-              {/* Emergency Contacts */}
-              <EmergencyContacts />
             </div>
           </div>
         </div>
+
+        {/* Nearest Police Stations Section */}
+        {nearestStations.length > 0 && (
+          <div className="mt-8 police-stations-full-list">
+            <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm">
+              <CardHeader className="pb-6">
+                <CardTitle className="flex items-center gap-3 text-xl lg:text-2xl">
+                  <Shield className="w-6 h-6 text-blue-500" />
+                  Nearest Police Stations
+                </CardTitle>
+                <CardDescription className="text-base">
+                  Click on any police station to get directions
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {nearestStations.map((station, index) => (
+                    <Card 
+                      key={index} 
+                      className="cursor-pointer hover:shadow-md transition-shadow border border-blue-200 bg-blue-50/50"
+                      onClick={() => {
+                        if (location) {
+                          const directionsUrl = policeStationService.getDirections(station, location.lat, location.lng);
+                          window.open(directionsUrl, '_blank');
+                        }
+                      }}
+                    >
+                      <CardContent className="p-4">
+                        <div className="space-y-2">
+                          <div className="flex items-start justify-between">
+                            <h4 className="font-semibold text-blue-900">{station.name}</h4>
+                            <Badge variant="secondary" className="text-xs">
+                              {station.distance.toFixed(1)} km
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 line-clamp-2">{station.address}</p>
+                          <div className="flex items-center gap-2 text-sm">
+                            <Phone className="w-4 h-4 text-green-600" />
+                            <span className="font-medium text-green-600">{station.phone}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-blue-600">
+                            <MapPin className="w-3 h-3" />
+                            <span>Click for directions</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
 
       <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>

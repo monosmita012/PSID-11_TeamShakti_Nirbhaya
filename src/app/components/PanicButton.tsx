@@ -4,16 +4,16 @@ import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 
-interface PanicButtonProps {
+interface SOSButtonProps {
   onActivate: () => void;
   isActivated: boolean;
   disabled?: boolean;
 }
 
-export default function PanicButton({ onActivate, isActivated, disabled = false }: PanicButtonProps) {
+export default function SOSButton({ onActivate, isActivated, disabled = false }: SOSButtonProps) {
   const [isPressed, setIsPressed] = useState(false);
 
-  const handlePanicActivate = () => {
+  const handleSOSActivate = () => {
     if (disabled || isActivated) return;
 
     setIsPressed(true);
@@ -28,17 +28,17 @@ export default function PanicButton({ onActivate, isActivated, disabled = false 
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <AlertTriangle className="w-5 h-5 text-red-600" />
-          Emergency Panic Button
+          Emergency SOS Button
         </CardTitle>
         <CardDescription>
           Press to activate emergency services immediately
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Panic Button */}
+        {/* SOS Button */}
         <div className="flex justify-center">
           <Button
-            onClick={handlePanicActivate}
+            onClick={handleSOSActivate}
             disabled={disabled || isActivated}
             size="lg"
             className={`
@@ -62,7 +62,7 @@ export default function PanicButton({ onActivate, isActivated, disabled = false 
               ) : (
                 <>
                   <AlertTriangle className="w-12 h-12" />
-                  <span>PANIC</span>
+                  <span>SOS</span>
                 </>
               )}
             </div>
@@ -73,9 +73,8 @@ export default function PanicButton({ onActivate, isActivated, disabled = false 
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
           <h4 className="font-medium text-yellow-800 mb-2">Emergency Instructions:</h4>
           <ul className="text-sm text-yellow-700 space-y-1">
-            <li>• Press the PANIC button to immediately activate emergency services</li>
+            <li>• Press the SOS button to immediately activate emergency services</li>
             <li>• Your location and live video will be shared with police</li>
-            <li>• Emergency contacts will be notified</li>
             <li>• Stay calm and follow police instructions via chat</li>
           </ul>
         </div>
